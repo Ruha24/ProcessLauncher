@@ -26,6 +26,10 @@ qt_add_executable(appProcessLauncher
     src/hotkeymanager.h
     src/traycontroller.cpp
     src/traycontroller.h
+    src/iconprovider.cpp
+    src/iconprovider.h
+    src/processfiltermodel.cpp
+    src/processfiltermodel.h
 )
 
 qt_add_qml_module(appProcessLauncher

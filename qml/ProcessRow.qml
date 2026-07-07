@@ -51,6 +51,17 @@ Item {
                 Behavior on color { ColorAnimation { duration: Theme.animBase } }
             }
 
+            Image {
+                Layout.preferredWidth: 28
+                Layout.preferredHeight: 28
+                sourceSize.width: 28
+                sourceSize.height: 28
+                fillMode: Image.PreserveAspectFit
+                asynchronous: true
+                cache: true
+                source: "image://exeicons/" + encodeURIComponent(row.path)
+            }
+
             ColumnLayout {
                 Layout.fillWidth: true
                 spacing: 2

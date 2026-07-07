@@ -81,40 +81,69 @@ ApplicationWindow {
     }
 
     header: Rectangle {
-        implicitHeight: 64
+        implicitHeight: 112
         color: Theme.surface
 
-        RowLayout {
+        ColumnLayout {
             anchors.fill: parent
             anchors.leftMargin: Theme.spacingL
             anchors.rightMargin: Theme.spacingL
-            spacing: Theme.spacing
+            anchors.topMargin: Theme.spacingS
+            anchors.bottomMargin: Theme.spacingS
+            spacing: Theme.spacingS
 
-            ColumnLayout {
+            RowLayout {
                 Layout.fillWidth: true
-                spacing: 0
-                Text {
-                    text: qsTr("Programs")
-                    color: Theme.textPrimary
-                    font.pixelSize: TypeScale.h1
-                    font.weight: Font.Medium
+                spacing: Theme.spacing
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 0
+                    Text {
+                        text: qsTr("Programs")
+                        color: Theme.textPrimary
+                        font.pixelSize: TypeScale.h1
+                        font.weight: Font.Medium
+                    }
+                    Text {
+                        text: qsTr("%n item(s)", "", list.count)
+                        color: Theme.textMuted
+                        font.pixelSize: TypeScale.caption
+                    }
                 }
-                Text {
-                    text: qsTr("%n item(s)", "", list.count)
-                    color: Theme.textMuted
-                    font.pixelSize: TypeScale.caption
+
+                AppButton {
+                    text: qsTr("Stop all")
+                    variant: "secondary"
+                    onClicked: processModel.stopAll()
+                }
+                AppButton {
+                    text: qsTr("+ Add")
+                    variant: "primary"
+                    onClicked: fileDialog.open()
                 }
             }
 
-            AppButton {
-                text: qsTr("Stop all")
-                variant: "secondary"
-                onClicked: processModel.stopAll()
-            }
-            AppButton {
-                text: qsTr("+ Add")
-                variant: "primary"
-                onClicked: fileDialog.open()
+            TextField {
+                id: searchField
+                Layout.fillWidth: true
+                Layout.preferredHeight: 34
+                placeholderText: qsTr("Search programs…")
+                color: Theme.textPrimary
+                placeholderTextColor: Theme.textMuted
+                font.pixelSize: TypeScale.base
+                selectByMouse: true
+                onTextChanged: filteredModel.setSearchText(text)
+                background: Rectangle {
+                    radius: Theme.radiusSmall
+                    color: Theme.surfaceElevated
+                    border.width: 1
+                    border.color: searchField.activeFocus ? Theme.interactive
+                                                          : Theme.outline
+                    Behavior on border.color {
+                        ColorAnimation { duration: Theme.animFast }
+                    }
+                }
             }
         }
     }
@@ -124,7 +153,7 @@ ApplicationWindow {
         anchors.fill: parent
         anchors.topMargin: Theme.spacingS
         clip: true
-        model: processModel
+        model: filteredModel
         spacing: 0
         reuseItems: true
 

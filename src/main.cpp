@@ -7,7 +7,9 @@
 
 #include "processmanager.h"
 #include "processlistmodel.h"
+#include "processfiltermodel.h"
 #include "traycontroller.h"
+#include "iconprovider.h"
 
 Q_IMPORT_QML_PLUGIN(ThemePlugin)
 
@@ -25,10 +27,15 @@ int main(int argc, char* argv[])
     ProcessManager  manager;
     ProcessListModel model(&manager);
 
+    ProcessFilterModel filterModel;
+    filterModel.setSourceModel(&model);
+
     TrayController tray(nullptr);
 
     QQmlApplicationEngine engine;
+    engine.addImageProvider(QStringLiteral("exeicons"), new IconProvider());
     engine.rootContext()->setContextProperty(QStringLiteral("processModel"), &model);
+    engine.rootContext()->setContextProperty(QStringLiteral("filteredModel"), &filterModel);
     engine.rootContext()->setContextProperty(QStringLiteral("tray"), &tray);
 
     QObject::connect(
