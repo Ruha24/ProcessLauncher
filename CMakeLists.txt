@@ -30,6 +30,8 @@ qt_add_executable(appProcessLauncher
     src/iconprovider.h
     src/processfiltermodel.cpp
     src/processfiltermodel.h
+    src/autostartmanager.cpp
+    src/autostartmanager.h
 )
 
 qt_add_qml_module(appProcessLauncher
@@ -65,6 +67,7 @@ if(WIN32)
     target_sources(appProcessLauncher PRIVATE app.rc)
     set_target_properties(appProcessLauncher PROPERTIES
         WIN32_EXECUTABLE TRUE)
+    target_link_libraries(appProcessLauncher PRIVATE shell32 ole32 uuid)
 endif()
 
 install(TARGETS appProcessLauncher

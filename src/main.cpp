@@ -10,6 +10,7 @@
 #include "processfiltermodel.h"
 #include "traycontroller.h"
 #include "iconprovider.h"
+#include "autostartmanager.h"
 
 Q_IMPORT_QML_PLUGIN(ThemePlugin)
 
@@ -31,12 +32,14 @@ int main(int argc, char* argv[])
     filterModel.setSourceModel(&model);
 
     TrayController tray(nullptr);
+    AutostartManager autostart;
 
     QQmlApplicationEngine engine;
     engine.addImageProvider(QStringLiteral("exeicons"), new IconProvider());
     engine.rootContext()->setContextProperty(QStringLiteral("processModel"), &model);
     engine.rootContext()->setContextProperty(QStringLiteral("filteredModel"), &filterModel);
     engine.rootContext()->setContextProperty(QStringLiteral("tray"), &tray);
+    engine.rootContext()->setContextProperty(QStringLiteral("autostart"), &autostart);
 
     QObject::connect(
         &engine, &QQmlApplicationEngine::objectCreationFailed,

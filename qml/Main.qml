@@ -133,6 +133,53 @@ ApplicationWindow {
                     }
                 }
 
+                Item {
+                    id: autostartItem
+                    Layout.preferredWidth: autostartToggle.implicitWidth
+                    Layout.preferredHeight: 34
+                    visible: (typeof autostart !== 'undefined') && autostart.available
+
+                    property bool on: (typeof autostart !== 'undefined') && autostart.enabled
+
+                    Row {
+                        id: autostartToggle
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: Theme.spacingS
+
+                        Rectangle {
+                            width: 20; height: 20
+                            radius: Theme.radiusSmall
+                            anchors.verticalCenter: parent.verticalCenter
+                            color: autostartItem.on ? Theme.interactive : Theme.surfaceElevated
+                            border.width: 1
+                            border.color: autostartItem.on ? Theme.interactive : Theme.outline
+                            Behavior on color { ColorAnimation { duration: Theme.animFast } }
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: "✓"
+                                visible: autostartItem.on
+                                color: Theme.textOnAccent
+                                font.pixelSize: 13
+                            }
+                        }
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: qsTr("Start with Windows")
+                            color: Theme.textMuted
+                            font.pixelSize: TypeScale.caption
+                        }
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: {
+                            if (typeof autostart !== 'undefined')
+                                autostart.setEnabled(!autostart.enabled)
+                        }
+                    }
+                }
+
                 AppButton {
                     text: qsTr("Stop all")
                     variant: "secondary"
@@ -322,6 +369,48 @@ ApplicationWindow {
                     text: qsTr("+ Add program")
                     variant: "primary"
                     onClicked: fileDialog.open()
+                }
+            }
+        }
+    }
+
+    DropArea {
+        id: dropArea
+        anchors.fill: parent
+        keys: ["text/uri-list"]
+
+        onDropped: (drop) => {
+            if (drop.hasUrls) {
+                for (var i = 0; i < drop.urls.length; i++)
+                    processModel.addProgramFromUrl(drop.urls[i], window.activeProfile)
+                drop.accept()
+            }
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            visible: dropArea.containsDrag
+            color: Qt.rgba(0.36, 0.55, 1.0, 0.12)
+            border.width: 2
+            border.color: Theme.interactive
+            radius: Theme.radius
+            z: 200
+
+            Rectangle {
+                anchors.centerIn: parent
+                width: dropLabel.width + 2 * Theme.spacingL
+                height: dropLabel.height + 2 * Theme.spacing
+                radius: Theme.radius
+                color: Theme.surfaceElevated
+                border.width: 1
+                border.color: Theme.interactive
+
+                Text {
+                    id: dropLabel
+                    anchors.centerIn: parent
+                    text: qsTr("Drop programs to add them to \"%1\"").arg(window.activeProfile)
+                    color: Theme.textPrimary
+                    font.pixelSize: TypeScale.h2
                 }
             }
         }
