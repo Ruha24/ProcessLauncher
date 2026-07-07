@@ -11,6 +11,8 @@ ProcessListModel::ProcessListModel(ProcessManager* manager, QObject* parent)
             this, &ProcessListModel::onListChanged);
     connect(m_manager, &ProcessManager::runStateChanged,
             this, &ProcessListModel::onRunStateChanged);
+    connect(m_manager, &ProcessManager::errorOccurred,
+            this, &ProcessListModel::onErrorOccurred);
 }
 
 int ProcessListModel::rowCount(const QModelIndex& parent) const
@@ -31,7 +33,7 @@ QVariant ProcessListModel::data(const QModelIndex& index, int role) const
     case NameRole:    return e.name;
     case BindRole:    return e.bind;
     case PathRole:    return e.path;
-    case RunningRole: return m_manager->isRunning(e.id);  // единый источник правды
+    case RunningRole: return m_manager->isRunning(e.id);
     }
     return QVariant();
 }
@@ -49,7 +51,7 @@ QHash<int, QByteArray> ProcessListModel::roleNames() const
 
 void ProcessListModel::addProgram(const QString& path, const QString& bind)
 {
-    m_manager->addProgram(path, bind);   // manager эмитит listChanged -> onListChanged
+    m_manager->addProgram(path, bind);
 }
 
 void ProcessListModel::addProgramFromUrl(const QUrl& url, const QString& bind)
@@ -92,8 +94,6 @@ int ProcessListModel::indexOfId(const QString& id) const
     return -1;
 }
 
-// Состав/порядок списка изменился (add/remove/bind). Полный, но корректный
-// reset — для десятков элементов это дёшево и гарантирует консистентность.
 void ProcessListModel::onListChanged()
 {
     beginResetModel();
@@ -101,11 +101,9 @@ void ProcessListModel::onListChanged()
     endResetModel();
 }
 
-// Изменился только флаг «запущен» одной строки — точечное обновление роли,
-// без полного сброса (важно для правила «dataChanged с конкретными ролями»).
 void ProcessListModel::onRunStateChanged(const QString& id, bool running)
 {
-    Q_UNUSED(running)   // актуальное значение data() возьмёт из manager->isRunning()
+    Q_UNUSED(running)
 
     const int row = indexOfId(id);
     if (row < 0)
@@ -113,4 +111,10 @@ void ProcessListModel::onRunStateChanged(const QString& id, bool running)
 
     const QModelIndex idx = index(row, 0);
     emit dataChanged(idx, idx, {RunningRole});
+}
+
+void ProcessListModel::onErrorOccurred(const QString& id, const QString& message)
+{
+    Q_UNUSED(id)
+    emit errorMessage(message);
 }

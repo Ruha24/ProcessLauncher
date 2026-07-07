@@ -13,6 +13,7 @@ Q_IMPORT_QML_PLUGIN(ThemePlugin)
 
 int main(int argc, char* argv[])
 {
+
     QApplication app(argc, argv);
 
     QCoreApplication::setOrganizationName(QStringLiteral("YourName"));

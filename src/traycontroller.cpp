@@ -79,6 +79,7 @@ void TrayController::toggleWindow()
 
 void TrayController::onActivated(int reason)
 {
+
     if (reason == QSystemTrayIcon::Trigger)
         toggleWindow();
 }

@@ -55,6 +55,7 @@ void JobController::terminate()
 {
     if (!m_job)
         return;
+
     TerminateJobObject(static_cast<HANDLE>(m_job), 1);
     closeHandle();
 }

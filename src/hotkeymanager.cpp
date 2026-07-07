@@ -18,6 +18,43 @@ HotkeyManager::HotkeyManager(QObject* parent)
 #endif
 }
 
+bool HotkeyManager::isValidBind(const QString& bind)
+{
+    const QString trimmed = bind.trimmed();
+    if (trimmed.isEmpty())
+        return false;
+
+    const QStringList parts = trimmed.split('+', Qt::SkipEmptyParts);
+    if (parts.isEmpty())
+        return false;
+
+    QString keyToken;
+    for (const QString& raw : parts) {
+        const QString p = raw.trimmed();
+        const QString low = p.toLower();
+        if (low == "ctrl" || low == "control" || low == "alt"
+            || low == "shift" || low == "win" || low == "meta")
+            continue;
+        if (!keyToken.isEmpty())
+            return false;
+        keyToken = p;
+    }
+    if (keyToken.isEmpty())
+        return false;
+
+    if (keyToken.size() == 1) {
+        const QChar c = keyToken.at(0).toUpper();
+        const ushort u = c.unicode();
+        return (u >= '0' && u <= '9') || (u >= 'A' && u <= 'Z');
+    }
+    if (keyToken.at(0).toUpper() == 'F') {
+        bool ok = false;
+        const int n = keyToken.mid(1).toInt(&ok);
+        return ok && n >= 1 && n <= 24;
+    }
+    return false;
+}
+
 HotkeyManager::~HotkeyManager()
 {
     clearAll();
@@ -43,7 +80,7 @@ bool HotkeyManager::parseBind(const QString& bind, Native& out)
         else if (low == "alt")                      mods |= MOD_ALT;
         else if (low == "shift")                    mods |= MOD_SHIFT;
         else if (low == "win" || low == "meta")     mods |= MOD_WIN;
-        else                                        keyToken = p;  // сама клавиша
+        else                                        keyToken = p;
     }
     if (keyToken.isEmpty())
         return false;

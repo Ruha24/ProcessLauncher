@@ -34,6 +34,7 @@ ProcessManager::ProcessManager(QObject* parent)
 
 ProcessManager::~ProcessManager()
 {
+
     qDeleteAll(m_jobs);
     m_jobs.clear();
 }
@@ -82,10 +83,18 @@ void ProcessManager::removeProgram(const QString& id)
 void ProcessManager::setBind(const QString& id, const QString& bind)
 {
     auto it = m_entries.find(id);
-    if (it == m_entries.end() || it->bind == bind)
+    if (it == m_entries.end())
         return;
 
-    it->bind = bind;
+    QString normalized = bind.trimmed();
+    if (!normalized.isEmpty() && !HotkeyManager::isValidBind(normalized)) {
+        emit errorOccurred(id, tr("Invalid hotkey: %1").arg(normalized));
+        normalized.clear();
+    }
+    if (it->bind == normalized)
+        return;
+
+    it->bind = normalized;
     syncHotkey(id);
     save();
     emit listChanged();
@@ -117,6 +126,7 @@ void ProcessManager::start(const QString& id)
         if (!m_pollTimer->isActive())
             m_pollTimer->start();
     } else {
+
         delete job;
         m_untracked.insert(id);
     }
@@ -207,6 +217,7 @@ void ProcessManager::syncHotkey(const QString& id)
 void ProcessManager::save() const
 {
     QJsonArray arr;
+
     QList<QString> ids = m_entries.keys();
     std::sort(ids.begin(), ids.end());
     for (const QString& id : ids) {
@@ -263,8 +274,12 @@ void ProcessManager::load()
         e.path = path;
         e.name = QFileInfo(path).fileName();
         e.bind = obj.value(QStringLiteral("bind")).toString();
+        if (!e.bind.isEmpty() && !HotkeyManager::isValidBind(e.bind))
+            e.bind.clear();
 
         m_entries.insert(e.id, e);
         syncHotkey(e.id);
     }
+
+    save();
 }
