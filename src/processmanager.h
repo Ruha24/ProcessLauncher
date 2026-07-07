@@ -21,6 +21,7 @@ struct ProcessEntry
     QString path;
     QString name;
     QString bind;
+    QString args;
 };
 
 class ProcessManager : public QObject
@@ -34,6 +35,7 @@ public:
     QString addProgram(const QString& path, const QString& bind = QString());
     void    removeProgram(const QString& id);
     void    setBind(const QString& id, const QString& bind);
+    void    setArgs(const QString& id, const QString& args);
 
     void start(const QString& id);
     void stop(const QString& id);

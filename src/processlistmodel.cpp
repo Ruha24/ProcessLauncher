@@ -34,6 +34,7 @@ QVariant ProcessListModel::data(const QModelIndex& index, int role) const
     case BindRole:    return e.bind;
     case PathRole:    return e.path;
     case RunningRole: return m_manager->isRunning(e.id);
+    case ArgsRole:    return e.args;
     }
     return QVariant();
 }
@@ -46,6 +47,7 @@ QHash<int, QByteArray> ProcessListModel::roleNames() const
         {BindRole,    QByteArrayLiteral("bind")},
         {PathRole,    QByteArrayLiteral("path")},
         {RunningRole, QByteArrayLiteral("running")},
+        {ArgsRole,    QByteArrayLiteral("args")},
     };
 }
 
@@ -68,6 +70,11 @@ void ProcessListModel::removeProgram(const QString& id)
 void ProcessListModel::setBind(const QString& id, const QString& bind)
 {
     m_manager->setBind(id, bind);
+}
+
+void ProcessListModel::setArgs(const QString& id, const QString& args)
+{
+    m_manager->setArgs(id, args);
 }
 
 void ProcessListModel::start(const QString& id)

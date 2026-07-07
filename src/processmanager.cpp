@@ -100,6 +100,17 @@ void ProcessManager::setBind(const QString& id, const QString& bind)
     emit listChanged();
 }
 
+void ProcessManager::setArgs(const QString& id, const QString& args)
+{
+    auto it = m_entries.find(id);
+    if (it == m_entries.end() || it->args == args)
+        return;
+
+    it->args = args;
+    save();
+    emit listChanged();
+}
+
 void ProcessManager::start(const QString& id)
 {
     auto it = m_entries.find(id);
@@ -111,6 +122,8 @@ void ProcessManager::start(const QString& id)
     QProcess proc;
     proc.setProgram(it->path);
     proc.setWorkingDirectory(QFileInfo(it->path).absolutePath());
+    if (!it->args.trimmed().isEmpty())
+        proc.setArguments(QProcess::splitCommand(it->args));
 
     qint64 pid = 0;
     if (!proc.startDetached(&pid) || pid <= 0) {
@@ -226,6 +239,7 @@ void ProcessManager::save() const
             {QStringLiteral("id"),   e.id},
             {QStringLiteral("path"), e.path},
             {QStringLiteral("bind"), e.bind},
+            {QStringLiteral("args"), e.args},
         });
     }
 
@@ -274,6 +288,7 @@ void ProcessManager::load()
         e.path = path;
         e.name = QFileInfo(path).fileName();
         e.bind = obj.value(QStringLiteral("bind")).toString();
+        e.args = obj.value(QStringLiteral("args")).toString();
         if (!e.bind.isEmpty() && !HotkeyManager::isValidBind(e.bind))
             e.bind.clear();
 

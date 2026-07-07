@@ -137,6 +137,11 @@ ApplicationWindow {
                 bindDialog.captured = currentBind
                 bindDialog.open()
             }
+            onEditArgsRequested: (id, currentArgs) => {
+                argsDialog.targetId = id
+                argsField.text = currentArgs
+                argsDialog.open()
+            }
         }
 
         Item {
@@ -301,6 +306,58 @@ ApplicationWindow {
                 font.pixelSize: TypeScale.caption
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
+            }
+        }
+    }
+
+    Dialog {
+        id: argsDialog
+        property string targetId: ""
+
+        title: qsTr("Launch arguments")
+        anchors.centerIn: parent
+        width: 380
+        modal: true
+        standardButtons: Dialog.Ok | Dialog.Cancel
+
+        onOpened: argsField.forceActiveFocus()
+        onAccepted: processModel.setArgs(targetId, argsField.text)
+
+        background: Rectangle {
+            color: Theme.surfaceElevated
+            radius: Theme.radius
+            border.width: 1
+            border.color: Theme.outline
+        }
+
+        contentItem: ColumnLayout {
+            spacing: Theme.spacingS
+            Text {
+                text: qsTr("Command-line arguments passed to the program.")
+                color: Theme.textMuted
+                font.pixelSize: TypeScale.caption
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+            }
+            TextField {
+                id: argsField
+                Layout.fillWidth: true
+                placeholderText: qsTr("e.g. --fullscreen --profile dev")
+                color: Theme.textPrimary
+                placeholderTextColor: Theme.textMuted
+                font.pixelSize: TypeScale.base
+                selectByMouse: true
+                onAccepted: argsDialog.accept()
+                background: Rectangle {
+                    radius: Theme.radiusSmall
+                    color: Theme.surface
+                    border.width: 1
+                    border.color: argsField.activeFocus ? Theme.interactive
+                                                        : Theme.outline
+                    Behavior on border.color {
+                        ColorAnimation { duration: Theme.animFast }
+                    }
+                }
             }
         }
     }

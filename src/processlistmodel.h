@@ -19,6 +19,7 @@ public:
         BindRole,
         PathRole,
         RunningRole,
+        ArgsRole,
     };
     Q_ENUM(Role)
 
@@ -31,6 +32,7 @@ public:
     Q_INVOKABLE void addProgram(const QString& path, const QString& bind);
     Q_INVOKABLE void removeProgram(const QString& id);
     Q_INVOKABLE void setBind(const QString& id, const QString& bind);
+    Q_INVOKABLE void setArgs(const QString& id, const QString& args);
     Q_INVOKABLE void start(const QString& id);
     Q_INVOKABLE void stop(const QString& id);
     Q_INVOKABLE void stopAll();

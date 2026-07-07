@@ -10,10 +10,12 @@ Item {
     required property string bind
     required property string path
     required property bool    running
+    required property string args
 
     signal startRequested(string id)
     signal stopRequested(string id)
     signal editBindRequested(string id, string currentBind)
+    signal editArgsRequested(string id, string currentArgs)
     signal removeRequested(string id)
 
     implicitHeight: 60
@@ -62,11 +64,16 @@ Item {
                 }
                 Text {
                     Layout.fillWidth: true
-                    visible: row.bind.length > 0 || row.running
-                    text: row.running ? (row.bind.length > 0
-                                            ? qsTr("Running · %1").arg(row.bind)
-                                            : qsTr("Running"))
-                                      : row.bind
+                    visible: row.bind.length > 0 || row.running || row.args.length > 0
+                    text: {
+                        var left = row.running
+                            ? (row.bind.length > 0 ? qsTr("Running · %1").arg(row.bind)
+                                                   : qsTr("Running"))
+                            : row.bind
+                        if (row.args.length > 0)
+                            left = left.length > 0 ? left + "  ·  " + row.args : row.args
+                        return left
+                    }
                     color: row.running ? Theme.running : Theme.textMuted
                     font.pixelSize: TypeScale.caption
                     elide: Text.ElideRight
@@ -84,8 +91,15 @@ Item {
             AppButton {
                 text: qsTr("Bind")
                 variant: "secondary"
-                Layout.preferredWidth: 72
+                Layout.preferredWidth: 66
                 onClicked: row.editBindRequested(row.procId, row.bind)
+            }
+
+            AppButton {
+                text: qsTr("Args")
+                variant: "secondary"
+                Layout.preferredWidth: 66
+                onClicked: row.editArgsRequested(row.procId, row.args)
             }
 
             AppButton {
