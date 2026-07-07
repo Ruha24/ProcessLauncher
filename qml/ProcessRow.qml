@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import Theme
 
@@ -19,6 +20,33 @@ Item {
     signal editArgsRequested(string id, string currentArgs)
     signal moveRequested(string id, string currentProfile)
     signal removeRequested(string id)
+    signal activated(string id, bool running)
+    signal openFolderRequested(string path)
+    signal copyPathRequested(string path)
+
+    property string uptimeText: ""
+
+    function formatUptime(secs) {
+        if (secs <= 0) return ""
+        var h = Math.floor(secs / 3600)
+        var m = Math.floor((secs % 3600) / 60)
+        var s = secs % 60
+        if (h > 0) return h + "h " + m + "m"
+        if (m > 0) return m + "m " + s + "s"
+        return s + "s"
+    }
+
+    function refreshUptime() {
+        uptimeText = running ? formatUptime(processModel.uptimeSeconds(procId)) : ""
+    }
+
+    onRunningChanged: refreshUptime()
+    Component.onCompleted: refreshUptime()
+
+    Connections {
+        target: processModel
+        function onTick() { row.refreshUptime() }
+    }
 
     implicitHeight: 60
     width: ListView.view ? ListView.view.width : implicitWidth
@@ -38,6 +66,33 @@ Item {
         Behavior on color { ColorAnimation { duration: Theme.animFast } }
 
         HoverHandler { id: hover }
+
+        TapHandler {
+            acceptedButtons: Qt.LeftButton
+            onDoubleTapped: row.activated(row.procId, row.running)
+        }
+
+        TapHandler {
+            acceptedButtons: Qt.RightButton
+            onTapped: rowMenu.open()
+        }
+
+        Menu {
+            id: rowMenu
+            MenuItem {
+                text: row.running ? qsTr("Stop") : qsTr("Start")
+                onTriggered: row.running ? row.stopRequested(row.procId)
+                                         : row.startRequested(row.procId)
+            }
+            MenuItem {
+                text: qsTr("Open file location")
+                onTriggered: row.openFolderRequested(row.path)
+            }
+            MenuItem {
+                text: qsTr("Copy path")
+                onTriggered: row.copyPathRequested(row.path)
+            }
+        }
 
         RowLayout {
             anchors.fill: parent
@@ -83,6 +138,8 @@ Item {
                             ? (row.bind.length > 0 ? qsTr("Running · %1").arg(row.bind)
                                                    : qsTr("Running"))
                             : row.bind
+                        if (row.running && row.uptimeText.length > 0)
+                            left += "  ·  " + row.uptimeText
                         if (row.args.length > 0)
                             left = left.length > 0 ? left + "  ·  " + row.args : row.args
                         return left

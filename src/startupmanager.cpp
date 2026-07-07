@@ -90,7 +90,7 @@ QHash<int, QByteArray> StartupModel::roleNames() const
         {NameRole,    QByteArrayLiteral("name")},
         {CommandRole, QByteArrayLiteral("command")},
         {SourceRole,  QByteArrayLiteral("source")},
-        {EnabledRole, QByteArrayLiteral("enabled")},
+        {EnabledRole, QByteArrayLiteral("isEnabled")},
     };
 }
 

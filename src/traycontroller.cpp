@@ -77,6 +77,12 @@ void TrayController::toggleWindow()
         showWindow();
 }
 
+void TrayController::notify(const QString& title, const QString& message)
+{
+    if (m_tray)
+        m_tray->showMessage(title, message, QSystemTrayIcon::Information, 5000);
+}
+
 void TrayController::onActivated(int reason)
 {
 

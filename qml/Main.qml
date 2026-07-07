@@ -14,8 +14,39 @@ ApplicationWindow {
     title: qsTr("Process Launcher")
     color: Theme.surface
 
+    Component.onCompleted: {
+        var g = windowState.load()
+        if (g.width > 0 && g.height > 0) {
+            window.width = g.width
+            window.height = g.height
+        }
+        if (g.x !== -1 && g.y !== -1) {
+            window.x = g.x
+            window.y = g.y
+        }
+        refreshProfiles()
+        refreshCounts()
+    }
+
+    onXChanged: windowState.save(window.x, window.y, window.width, window.height)
+    onYChanged: windowState.save(window.x, window.y, window.width, window.height)
+    onWidthChanged: windowState.save(window.x, window.y, window.width, window.height)
+    onHeightChanged: windowState.save(window.x, window.y, window.width, window.height)
+
     property string activeProfile: ""
     property var profileList: []
+    property int profileRunning: 0
+    property int profileTotal: 0
+
+    function refreshCounts() {
+        profileRunning = processModel.profileRunningCount(activeProfile)
+        profileTotal = processModel.profileTotalCount(activeProfile)
+    }
+
+    Connections {
+        target: processModel
+        function onTick() { window.refreshCounts() }
+    }
 
     function refreshProfiles() {
         var list = processModel.profiles()
@@ -26,9 +57,10 @@ ApplicationWindow {
         filteredModel.setActiveProfile(activeProfile)
     }
 
-    onActiveProfileChanged: filteredModel.setActiveProfile(activeProfile)
-
-    Component.onCompleted: refreshProfiles()
+    onActiveProfileChanged: {
+        filteredModel.setActiveProfile(activeProfile)
+        refreshCounts()
+    }
 
     Connections {
         target: processModel
@@ -47,6 +79,16 @@ ApplicationWindow {
         function onErrorMessage(text) {
             errorBanner.text = text
             errorBanner.show()
+        }
+    }
+
+    Connections {
+        target: processModel
+        function onProcessExited(name, profile) {
+            if (tray.isAvailable())
+                tray.notify(qsTr("Program stopped"),
+                            qsTr("%1 (%2) is no longer running.").arg(name).arg(profile))
+            window.refreshCounts()
         }
     }
 
@@ -298,13 +340,19 @@ ApplicationWindow {
                     text: qsTr("Start all")
                     variant: "primary"
                     Layout.preferredWidth: 90
-                    onClicked: processModel.startProfile(window.activeProfile)
+                    onClicked: { processModel.startProfile(window.activeProfile); window.refreshCounts() }
                 }
                 AppButton {
                     text: qsTr("Stop all")
                     variant: "secondary"
                     Layout.preferredWidth: 90
-                    onClicked: processModel.stopProfile(window.activeProfile)
+                    onClicked: { processModel.stopProfile(window.activeProfile); window.refreshCounts() }
+                }
+                Text {
+                    Layout.leftMargin: Theme.spacingS
+                    text: qsTr("%1 / %2 running").arg(window.profileRunning).arg(window.profileTotal)
+                    color: window.profileRunning > 0 ? Theme.running : Theme.textMuted
+                    font.pixelSize: TypeScale.caption
                 }
                 Item { Layout.fillWidth: true }
                 AppButton {
@@ -338,9 +386,17 @@ ApplicationWindow {
         reuseItems: true
 
         delegate: ProcessRow {
-            onStartRequested: (id) => processModel.start(id)
-            onStopRequested: (id) => processModel.stop(id)
-            onRemoveRequested: (id) => processModel.removeProgram(id)
+            onStartRequested: (id) => { processModel.start(id); window.refreshCounts() }
+            onStopRequested: (id) => { processModel.stop(id); window.refreshCounts() }
+            onRemoveRequested: (id) => {
+                confirmDeleteDialog.targetId = id
+                confirmDeleteDialog.open()
+            }
+            onActivated: (id, running) => {
+                if (!running) { processModel.start(id); window.refreshCounts() }
+            }
+            onOpenFolderRequested: (path) => processModel.openFileLocation(path)
+            onCopyPathRequested: (path) => processModel.copyPath(path)
             onEditBindRequested: (id, currentBind) => {
                 bindDialog.targetId = id
                 bindDialog.captured = currentBind
@@ -822,6 +878,32 @@ ApplicationWindow {
     }
 
     Dialog {
+        id: confirmDeleteDialog
+        property string targetId: ""
+        title: qsTr("Remove program")
+        anchors.centerIn: parent
+        width: 340
+        modal: true
+        standardButtons: Dialog.Yes | Dialog.No
+
+        onAccepted: processModel.removeProgram(targetId)
+
+        background: Rectangle {
+            color: Theme.surfaceElevated
+            radius: Theme.radius
+            border.width: 1
+            border.color: Theme.outline
+        }
+
+        contentItem: Text {
+            text: qsTr("Remove this program from the list? This does not delete the program itself.")
+            color: Theme.textPrimary
+            font.pixelSize: TypeScale.base
+            wrapMode: Text.WordWrap
+        }
+    }
+
+    Dialog {
         id: startupDialog
         title: qsTr("Windows startup")
         anchors.centerIn: parent
@@ -859,7 +941,7 @@ ApplicationWindow {
                     required property string name
                     required property string command
                     required property string source
-                    required property bool enabled
+                    required property bool isEnabled
 
                     width: ListView.view ? ListView.view.width : 0
                     height: 58
@@ -880,7 +962,7 @@ ApplicationWindow {
                             Text {
                                 Layout.fillWidth: true
                                 text: name
-                                color: enabled ? Theme.textPrimary : Theme.textMuted
+                                color: isEnabled ? Theme.textPrimary : Theme.textMuted
                                 font.pixelSize: TypeScale.base
                                 elide: Text.ElideRight
                             }
@@ -894,10 +976,10 @@ ApplicationWindow {
                         }
 
                         AppButton {
-                            text: enabled ? qsTr("On") : qsTr("Off")
-                            variant: enabled ? "primary" : "secondary"
+                            text: isEnabled ? qsTr("On") : qsTr("Off")
+                            variant: isEnabled ? "primary" : "secondary"
                             Layout.preferredWidth: 60
-                            onClicked: startupModel.setEnabled(index, !enabled)
+                            onClicked: startupModel.setEnabled(index, !isEnabled)
                         }
                         AppButton {
                             text: "✕"

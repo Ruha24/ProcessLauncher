@@ -12,6 +12,7 @@
 #include "iconprovider.h"
 #include "autostartmanager.h"
 #include "startupmanager.h"
+#include "windowstate.h"
 
 Q_IMPORT_QML_PLUGIN(ThemePlugin)
 
@@ -35,6 +36,7 @@ int main(int argc, char* argv[])
     TrayController tray(nullptr);
     AutostartManager autostart;
     StartupModel startupModel;
+    WindowState windowState;
 
     QQmlApplicationEngine engine;
     engine.addImageProvider(QStringLiteral("exeicons"), new IconProvider());
@@ -43,6 +45,7 @@ int main(int argc, char* argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("tray"), &tray);
     engine.rootContext()->setContextProperty(QStringLiteral("autostart"), &autostart);
     engine.rootContext()->setContextProperty(QStringLiteral("startupModel"), &startupModel);
+    engine.rootContext()->setContextProperty(QStringLiteral("windowState"), &windowState);
 
     QObject::connect(
         &engine, &QQmlApplicationEngine::objectCreationFailed,

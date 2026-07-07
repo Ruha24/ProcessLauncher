@@ -1,5 +1,13 @@
 #include "processlistmodel.h"
 
+#include <QGuiApplication>
+#include <QClipboard>
+#include <QProcess>
+#include <QFileInfo>
+#include <QDesktopServices>
+#include <QUrl>
+#include <QDir>
+
 ProcessListModel::ProcessListModel(ProcessManager* manager, QObject* parent)
     : QAbstractListModel(parent)
     , m_manager(manager)
@@ -15,6 +23,10 @@ ProcessListModel::ProcessListModel(ProcessManager* manager, QObject* parent)
             this, &ProcessListModel::onErrorOccurred);
     connect(m_manager, &ProcessManager::profilesChanged,
             this, &ProcessListModel::profilesChanged);
+    connect(m_manager, &ProcessManager::tick,
+            this, &ProcessListModel::tick);
+    connect(m_manager, &ProcessManager::processExited,
+            this, &ProcessListModel::processExited);
 }
 
 int ProcessListModel::rowCount(const QModelIndex& parent) const
@@ -66,6 +78,42 @@ void ProcessListModel::addProgramFromUrl(const QUrl& url, const QString& profile
     const QString id = m_manager->addProgram(path, QString());
     if (!id.isEmpty() && !profile.isEmpty())
         m_manager->setProgramProfile(id, profile);
+}
+
+void ProcessListModel::openFileLocation(const QString& path) const
+{
+    const QFileInfo info(path);
+    if (!info.exists())
+        return;
+
+#ifdef Q_OS_WIN
+    QProcess::startDetached(QStringLiteral("explorer.exe"),
+                            {QStringLiteral("/select,"),
+                             QDir::toNativeSeparators(info.absoluteFilePath())});
+#else
+    QDesktopServices::openUrl(QUrl::fromLocalFile(info.absolutePath()));
+#endif
+}
+
+void ProcessListModel::copyPath(const QString& path) const
+{
+    if (QClipboard* cb = QGuiApplication::clipboard())
+        cb->setText(QDir::toNativeSeparators(path));
+}
+
+int ProcessListModel::uptimeSeconds(const QString& id) const
+{
+    return m_manager->uptimeSeconds(id);
+}
+
+int ProcessListModel::profileRunningCount(const QString& name) const
+{
+    return m_manager->profileRunningCount(name);
+}
+
+int ProcessListModel::profileTotalCount(const QString& name) const
+{
+    return m_manager->profileTotalCount(name);
 }
 
 void ProcessListModel::removeProgram(const QString& id)

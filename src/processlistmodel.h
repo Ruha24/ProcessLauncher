@@ -42,6 +42,9 @@ public:
 
     Q_INVOKABLE void addProgramFromUrl(const QUrl& url, const QString& profile);
 
+    Q_INVOKABLE void openFileLocation(const QString& path) const;
+    Q_INVOKABLE void copyPath(const QString& path) const;
+
     Q_INVOKABLE QStringList profiles() const;
     Q_INVOKABLE void addProfile(const QString& name);
     Q_INVOKABLE void removeProfile(const QString& name);
@@ -51,10 +54,16 @@ public:
     Q_INVOKABLE QString profileBind(const QString& name) const;
     Q_INVOKABLE void setProfileBind(const QString& name, const QString& bind);
 
+    Q_INVOKABLE int uptimeSeconds(const QString& id) const;
+    Q_INVOKABLE int profileRunningCount(const QString& name) const;
+    Q_INVOKABLE int profileTotalCount(const QString& name) const;
+
 signals:
 
     void errorMessage(const QString& text);
     void profilesChanged();
+    void tick();
+    void processExited(const QString& name, const QString& profile);
 
 private slots:
     void onListChanged();

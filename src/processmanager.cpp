@@ -302,6 +302,7 @@ void ProcessManager::start(const QString& id)
         m_untracked.insert(id);
     }
 
+    m_startTimes.insert(id, QDateTime::currentDateTime());
     emit runStateChanged(id, true);
 }
 
@@ -317,6 +318,8 @@ void ProcessManager::stop(const QString& id)
     }
     if (m_untracked.remove(id))
         wasRunning = true;
+
+    m_startTimes.remove(id);
 
     if (m_jobs.isEmpty() && m_pollTimer->isActive())
         m_pollTimer->stop();
@@ -338,6 +341,35 @@ bool ProcessManager::isRunning(const QString& id) const
         return true;
     const auto it = m_jobs.constFind(id);
     return it != m_jobs.constEnd() && it.value()->isAlive();
+}
+
+int ProcessManager::uptimeSeconds(const QString& id) const
+{
+    const auto it = m_startTimes.constFind(id);
+    if (it == m_startTimes.constEnd() || !isRunning(id))
+        return 0;
+    const qint64 secs = it->secsTo(QDateTime::currentDateTime());
+    return secs > 0 ? static_cast<int>(secs) : 0;
+}
+
+int ProcessManager::profileRunningCount(const QString& name) const
+{
+    int n = 0;
+    for (auto it = m_entries.constBegin(); it != m_entries.constEnd(); ++it) {
+        if (it->profile == name && isRunning(it->id))
+            ++n;
+    }
+    return n;
+}
+
+int ProcessManager::profileTotalCount(const QString& name) const
+{
+    int n = 0;
+    for (auto it = m_entries.constBegin(); it != m_entries.constEnd(); ++it) {
+        if (it->profile == name)
+            ++n;
+    }
+    return n;
 }
 
 QList<ProcessEntry> ProcessManager::entries() const
@@ -366,11 +398,19 @@ void ProcessManager::pollJobs()
             delete jt.value();
             m_jobs.erase(jt);
         }
+        m_startTimes.remove(id);
+
+        const auto e = m_entries.constFind(id);
+        if (e != m_entries.constEnd())
+            emit processExited(e->name, e->profile);
+
         emit runStateChanged(id, false);
     }
 
     if (m_jobs.isEmpty() && m_pollTimer->isActive())
         m_pollTimer->stop();
+
+    emit tick();
 }
 
 void ProcessManager::syncHotkey(const QString& id)

@@ -25,6 +25,7 @@ public slots:
     void showWindow();
     void hideWindow();
     void toggleWindow();
+    void notify(const QString& title, const QString& message);
 
 private slots:
     void onActivated(int reason);

@@ -7,6 +7,7 @@
 #include <QList>
 #include <QString>
 #include <QStringList>
+#include <QDateTime>
 
 QT_BEGIN_NAMESPACE
 class QProcess;
@@ -54,6 +55,9 @@ public:
     void        setProfileBind(const QString& name, const QString& bind);
 
     bool isRunning(const QString& id) const;
+    int  uptimeSeconds(const QString& id) const;
+    int  profileRunningCount(const QString& name) const;
+    int  profileTotalCount(const QString& name) const;
 
     QList<ProcessEntry> entries() const;
 
@@ -63,6 +67,8 @@ signals:
     void runStateChanged(const QString& id, bool running);
     void listChanged();
     void profilesChanged();
+    void tick();
+    void processExited(const QString& name, const QString& profile);
     void errorOccurred(const QString& id, const QString& message);
 
 private slots:
@@ -78,6 +84,7 @@ private:
 
     QHash<QString, ProcessEntry>    m_entries;
     QHash<QString, JobController*>  m_jobs;
+    QHash<QString, QDateTime>       m_startTimes;
     QSet<QString>                   m_untracked;
     QStringList                     m_profiles;
     QHash<QString, QString>         m_profileBinds;
