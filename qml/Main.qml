@@ -14,6 +14,27 @@ ApplicationWindow {
     title: qsTr("Process Launcher")
     color: Theme.surface
 
+    property string activeProfile: ""
+    property var profileList: []
+
+    function refreshProfiles() {
+        var list = processModel.profiles()
+        profileList = list
+        if (list.length === 0) { activeProfile = ""; return }
+        if (list.indexOf(activeProfile) < 0)
+            activeProfile = list[0]
+        filteredModel.setActiveProfile(activeProfile)
+    }
+
+    onActiveProfileChanged: filteredModel.setActiveProfile(activeProfile)
+
+    Component.onCompleted: refreshProfiles()
+
+    Connections {
+        target: processModel
+        function onProfilesChanged() { refreshProfiles() }
+    }
+
     onClosing: (close) => {
         if (tray.isAvailable()) {
             close.accepted = false
@@ -81,7 +102,7 @@ ApplicationWindow {
     }
 
     header: Rectangle {
-        implicitHeight: 112
+        implicitHeight: 190
         color: Theme.surface
 
         ColumnLayout {
@@ -145,6 +166,101 @@ ApplicationWindow {
                     }
                 }
             }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: Theme.spacingS
+
+                Flickable {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 34
+                    contentWidth: tabsRow.width
+                    clip: true
+                    flickableDirection: Flickable.HorizontalFlick
+
+                    Row {
+                        id: tabsRow
+                        height: 34
+                        spacing: Theme.spacingS
+
+                        Repeater {
+                            model: window.profileList
+
+                            Rectangle {
+                                required property string modelData
+                                height: 34
+                                width: tabLabel.width + 2 * Theme.spacing
+                                radius: Theme.radiusSmall
+                                color: modelData === window.activeProfile
+                                       ? Theme.interactive : Theme.surfaceElevated
+                                border.width: 1
+                                border.color: modelData === window.activeProfile
+                                              ? Theme.interactive : Theme.outline
+
+                                Text {
+                                    id: tabLabel
+                                    anchors.centerIn: parent
+                                    text: parent.modelData
+                                    color: parent.modelData === window.activeProfile
+                                           ? Theme.textOnAccent : Theme.textPrimary
+                                    font.pixelSize: TypeScale.base
+                                }
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    onClicked: window.activeProfile = parent.modelData
+                                }
+                            }
+                        }
+                    }
+                }
+
+                AppButton {
+                    text: "+"
+                    variant: "secondary"
+                    Layout.preferredWidth: 34
+                    onClicked: {
+                        newProfileField.text = ""
+                        newProfileDialog.open()
+                    }
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: Theme.spacingS
+
+                AppButton {
+                    text: qsTr("Start all")
+                    variant: "primary"
+                    Layout.preferredWidth: 90
+                    onClicked: processModel.startProfile(window.activeProfile)
+                }
+                AppButton {
+                    text: qsTr("Stop all")
+                    variant: "secondary"
+                    Layout.preferredWidth: 90
+                    onClicked: processModel.stopProfile(window.activeProfile)
+                }
+                Item { Layout.fillWidth: true }
+                AppButton {
+                    text: qsTr("Hotkey")
+                    variant: "secondary"
+                    Layout.preferredWidth: 74
+                    onClicked: {
+                        profileBindDialog.targetProfile = window.activeProfile
+                        profileBindDialog.captured = processModel.profileBind(window.activeProfile)
+                        profileBindDialog.open()
+                    }
+                }
+                AppButton {
+                    text: qsTr("Delete")
+                    variant: "danger"
+                    Layout.preferredWidth: 74
+                    enabled: window.profileList.length > 1
+                    onClicked: processModel.removeProfile(window.activeProfile)
+                }
+            }
         }
     }
 
@@ -170,6 +286,11 @@ ApplicationWindow {
                 argsDialog.targetId = id
                 argsField.text = currentArgs
                 argsDialog.open()
+            }
+            onMoveRequested: (id, currentProfile) => {
+                moveDialog.targetId = id
+                moveDialog.currentProfile = currentProfile
+                moveDialog.open()
             }
         }
 
@@ -212,7 +333,7 @@ ApplicationWindow {
         nameFilters: Qt.platform.os === "windows"
                      ? [qsTr("Executables (*.exe)"), qsTr("All files (*)")]
                      : [qsTr("All files (*)")]
-        onAccepted: processModel.addProgramFromUrl(selectedFile, "")
+        onAccepted: processModel.addProgramFromUrl(selectedFile, window.activeProfile)
     }
 
     Dialog {
@@ -385,6 +506,206 @@ ApplicationWindow {
                                                         : Theme.outline
                     Behavior on border.color {
                         ColorAnimation { duration: Theme.animFast }
+                    }
+                }
+            }
+        }
+    }
+
+    Dialog {
+        id: newProfileDialog
+        title: qsTr("New profile")
+        anchors.centerIn: parent
+        width: 340
+        modal: true
+        standardButtons: Dialog.Ok | Dialog.Cancel
+
+        onOpened: newProfileField.forceActiveFocus()
+        onAccepted: {
+            var name = newProfileField.text.trim()
+            if (name.length > 0) {
+                processModel.addProfile(name)
+                window.activeProfile = name
+            }
+        }
+
+        background: Rectangle {
+            color: Theme.surfaceElevated
+            radius: Theme.radius
+            border.width: 1
+            border.color: Theme.outline
+        }
+
+        contentItem: ColumnLayout {
+            spacing: Theme.spacingS
+            Text {
+                text: qsTr("Name for the new profile.")
+                color: Theme.textMuted
+                font.pixelSize: TypeScale.caption
+                Layout.fillWidth: true
+            }
+            TextField {
+                id: newProfileField
+                Layout.fillWidth: true
+                placeholderText: qsTr("e.g. Games, Work, Streaming")
+                color: Theme.textPrimary
+                placeholderTextColor: Theme.textMuted
+                font.pixelSize: TypeScale.base
+                selectByMouse: true
+                onAccepted: newProfileDialog.accept()
+                background: Rectangle {
+                    radius: Theme.radiusSmall
+                    color: Theme.surface
+                    border.width: 1
+                    border.color: newProfileField.activeFocus ? Theme.interactive
+                                                              : Theme.outline
+                    Behavior on border.color {
+                        ColorAnimation { duration: Theme.animFast }
+                    }
+                }
+            }
+        }
+    }
+
+    Dialog {
+        id: profileBindDialog
+        property string targetProfile: ""
+        property string captured: ""
+
+        title: qsTr("Profile hotkey")
+        anchors.centerIn: parent
+        width: 360
+        modal: true
+        standardButtons: Dialog.Ok | Dialog.Cancel | Dialog.Reset
+
+        onOpened: profileCapture.forceActiveFocus()
+        onAccepted: processModel.setProfileBind(targetProfile, captured)
+        onReset: {
+            captured = ""
+            processModel.setProfileBind(targetProfile, "")
+        }
+
+        function isModifierKey(k) {
+            return k === Qt.Key_Control || k === Qt.Key_Shift
+                || k === Qt.Key_Alt || k === Qt.Key_Meta || k === Qt.Key_AltGr
+        }
+        function toBindString(key, mods) {
+            var name = ""
+            var shiftPairs = {
+                "!":"1","@":"2","#":"3","$":"4","%":"5",
+                "^":"6","&":"7","*":"8","(":"9",")":"0"
+            }
+            if (key >= Qt.Key_0 && key <= Qt.Key_9)
+                name = String.fromCharCode("0".charCodeAt(0) + (key - Qt.Key_0))
+            else if (key >= Qt.Key_A && key <= Qt.Key_Z)
+                name = String.fromCharCode("A".charCodeAt(0) + (key - Qt.Key_A))
+            else if (key >= Qt.Key_F1 && key <= Qt.Key_F24)
+                name = "F" + (key - Qt.Key_F1 + 1)
+            else if (shiftPairs[String.fromCharCode(key)] !== undefined)
+                name = shiftPairs[String.fromCharCode(key)]
+            else
+                return ""
+            var parts = []
+            if (mods & Qt.ControlModifier) parts.push("Ctrl")
+            if (mods & Qt.AltModifier)     parts.push("Alt")
+            if (mods & Qt.ShiftModifier)   parts.push("Shift")
+            if (mods & Qt.MetaModifier)    parts.push("Win")
+            parts.push(name)
+            return parts.join("+")
+        }
+
+        background: Rectangle {
+            color: Theme.surfaceElevated
+            radius: Theme.radius
+            border.width: 1
+            border.color: Theme.outline
+        }
+
+        contentItem: ColumnLayout {
+            spacing: Theme.spacingS
+            Text {
+                text: qsTr("Press a key or combination to launch this whole profile.")
+                color: Theme.textMuted
+                font.pixelSize: TypeScale.caption
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+            }
+            Rectangle {
+                id: profileCapture
+                Layout.fillWidth: true
+                Layout.preferredHeight: 44
+                radius: Theme.radiusSmall
+                color: Theme.surface
+                border.width: 1
+                border.color: activeFocus ? Theme.interactive : Theme.outline
+                focus: true
+                activeFocusOnTab: true
+
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: profileCapture.forceActiveFocus()
+                }
+                Keys.onShortcutOverride: (event) => { event.accepted = true }
+                Keys.onPressed: (event) => {
+                    if (profileBindDialog.isModifierKey(event.key)) {
+                        event.accepted = true
+                        return
+                    }
+                    var s = profileBindDialog.toBindString(event.key, event.modifiers)
+                    if (s.length > 0)
+                        profileBindDialog.captured = s
+                    event.accepted = true
+                }
+
+                Text {
+                    anchors.centerIn: parent
+                    text: profileBindDialog.captured.length > 0
+                          ? profileBindDialog.captured : qsTr("Press keys…")
+                    color: profileBindDialog.captured.length > 0
+                           ? Theme.textPrimary : Theme.textMuted
+                    font.pixelSize: TypeScale.h2
+                }
+            }
+        }
+    }
+
+    Dialog {
+        id: moveDialog
+        property string targetId: ""
+        property string currentProfile: ""
+
+        title: qsTr("Move to profile")
+        anchors.centerIn: parent
+        width: 340
+        modal: true
+        standardButtons: Dialog.Cancel
+
+        background: Rectangle {
+            color: Theme.surfaceElevated
+            radius: Theme.radius
+            border.width: 1
+            border.color: Theme.outline
+        }
+
+        contentItem: ColumnLayout {
+            spacing: Theme.spacingS
+            Text {
+                text: qsTr("Pick a profile for this program.")
+                color: Theme.textMuted
+                font.pixelSize: TypeScale.caption
+                Layout.fillWidth: true
+            }
+            Repeater {
+                model: window.profileList
+                AppButton {
+                    required property string modelData
+                    Layout.fillWidth: true
+                    text: modelData
+                    variant: modelData === moveDialog.currentProfile
+                             ? "primary" : "secondary"
+                    onClicked: {
+                        processModel.setProgramProfile(moveDialog.targetId, modelData)
+                        moveDialog.close()
                     }
                 }
             }

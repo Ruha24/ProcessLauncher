@@ -11,11 +11,13 @@ Item {
     required property string path
     required property bool    running
     required property string args
+    required property string profile
 
     signal startRequested(string id)
     signal stopRequested(string id)
     signal editBindRequested(string id, string currentBind)
     signal editArgsRequested(string id, string currentArgs)
+    signal moveRequested(string id, string currentProfile)
     signal removeRequested(string id)
 
     implicitHeight: 60
@@ -111,6 +113,13 @@ Item {
                 variant: "secondary"
                 Layout.preferredWidth: 66
                 onClicked: row.editArgsRequested(row.procId, row.args)
+            }
+
+            AppButton {
+                text: "⇄"
+                variant: "secondary"
+                Layout.preferredWidth: 40
+                onClicked: row.moveRequested(row.procId, row.profile)
             }
 
             AppButton {

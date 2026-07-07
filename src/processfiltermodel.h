@@ -10,6 +10,7 @@ public:
     explicit ProcessFilterModel(QObject* parent = nullptr);
 
     Q_INVOKABLE void setSearchText(const QString& text);
+    Q_INVOKABLE void setActiveProfile(const QString& profile);
 
 protected:
     bool filterAcceptsRow(int sourceRow,
@@ -17,6 +18,7 @@ protected:
 
 private:
     QString m_search;
+    QString m_profile;
 };
 
 #endif

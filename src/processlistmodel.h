@@ -4,6 +4,7 @@
 #include <QAbstractListModel>
 #include <QList>
 #include <QString>
+#include <QStringList>
 #include <QUrl>
 
 #include "processmanager.h"
@@ -20,6 +21,7 @@ public:
         PathRole,
         RunningRole,
         ArgsRole,
+        ProfileRole,
     };
     Q_ENUM(Role)
 
@@ -33,15 +35,26 @@ public:
     Q_INVOKABLE void removeProgram(const QString& id);
     Q_INVOKABLE void setBind(const QString& id, const QString& bind);
     Q_INVOKABLE void setArgs(const QString& id, const QString& args);
+    Q_INVOKABLE void setProgramProfile(const QString& id, const QString& profile);
     Q_INVOKABLE void start(const QString& id);
     Q_INVOKABLE void stop(const QString& id);
     Q_INVOKABLE void stopAll();
 
-    Q_INVOKABLE void addProgramFromUrl(const QUrl& url, const QString& bind);
+    Q_INVOKABLE void addProgramFromUrl(const QUrl& url, const QString& profile);
+
+    Q_INVOKABLE QStringList profiles() const;
+    Q_INVOKABLE void addProfile(const QString& name);
+    Q_INVOKABLE void removeProfile(const QString& name);
+    Q_INVOKABLE void renameProfile(const QString& oldName, const QString& newName);
+    Q_INVOKABLE void startProfile(const QString& name);
+    Q_INVOKABLE void stopProfile(const QString& name);
+    Q_INVOKABLE QString profileBind(const QString& name) const;
+    Q_INVOKABLE void setProfileBind(const QString& name, const QString& bind);
 
 signals:
 
     void errorMessage(const QString& text);
+    void profilesChanged();
 
 private slots:
     void onListChanged();

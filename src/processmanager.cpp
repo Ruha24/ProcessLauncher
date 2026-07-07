@@ -16,6 +16,7 @@
 
 namespace {
 constexpr int kPollIntervalMs = 1200;
+const QString kProfilePrefix = QStringLiteral("profile:");
 }
 
 ProcessManager::ProcessManager(QObject* parent)
@@ -27,7 +28,7 @@ ProcessManager::ProcessManager(QObject* parent)
     connect(m_pollTimer, &QTimer::timeout, this, &ProcessManager::pollJobs);
 
     connect(m_hotkeys, &HotkeyManager::activated,
-            this, &ProcessManager::start);
+            this, &ProcessManager::onHotkeyActivated);
 
     load();
 }
@@ -47,6 +48,145 @@ QString ProcessManager::configFilePath() const
     return dir + QStringLiteral("/programs.json");
 }
 
+void ProcessManager::onHotkeyActivated(const QString& hotkeyId)
+{
+    if (hotkeyId.startsWith(kProfilePrefix))
+        startProfile(hotkeyId.mid(kProfilePrefix.size()));
+    else
+        start(hotkeyId);
+}
+
+QStringList ProcessManager::profiles() const
+{
+    return m_profiles;
+}
+
+void ProcessManager::addProfile(const QString& name)
+{
+    const QString n = name.trimmed();
+    if (n.isEmpty() || m_profiles.contains(n))
+        return;
+    m_profiles.append(n);
+    save();
+    emit profilesChanged();
+}
+
+void ProcessManager::removeProfile(const QString& name)
+{
+    if (!m_profiles.contains(name) || m_profiles.size() <= 1)
+        return;
+
+    const QString fallback = m_profiles.value(0) == name
+                                 ? m_profiles.value(1)
+                                 : m_profiles.value(0);
+
+    for (ProcessEntry& e : m_entries) {
+        if (e.profile == name)
+            e.profile = fallback;
+    }
+
+    m_hotkeys->clearHotkey(profileHotkeyId(name));
+    m_profileBinds.remove(name);
+    m_profiles.removeAll(name);
+
+    save();
+    emit profilesChanged();
+    emit listChanged();
+}
+
+void ProcessManager::renameProfile(const QString& oldName, const QString& newName)
+{
+    const QString n = newName.trimmed();
+    const int idx = m_profiles.indexOf(oldName);
+    if (idx < 0 || n.isEmpty() || m_profiles.contains(n))
+        return;
+
+    m_profiles[idx] = n;
+    for (ProcessEntry& e : m_entries) {
+        if (e.profile == oldName)
+            e.profile = n;
+    }
+    if (m_profileBinds.contains(oldName)) {
+        m_profileBinds.insert(n, m_profileBinds.take(oldName));
+        m_hotkeys->clearHotkey(profileHotkeyId(oldName));
+        syncProfileHotkey(n);
+    }
+
+    save();
+    emit profilesChanged();
+    emit listChanged();
+}
+
+void ProcessManager::setProgramProfile(const QString& id, const QString& profile)
+{
+    auto it = m_entries.find(id);
+    if (it == m_entries.end() || !m_profiles.contains(profile)
+        || it->profile == profile)
+        return;
+
+    it->profile = profile;
+    save();
+    emit listChanged();
+}
+
+void ProcessManager::startProfile(const QString& name)
+{
+    const QList<QString> ids = m_entries.keys();
+    for (const QString& id : ids) {
+        if (m_entries.value(id).profile == name)
+            start(id);
+    }
+}
+
+void ProcessManager::stopProfile(const QString& name)
+{
+    const QList<QString> ids = m_entries.keys();
+    for (const QString& id : ids) {
+        if (m_entries.value(id).profile == name)
+            stop(id);
+    }
+}
+
+QString ProcessManager::profileBind(const QString& name) const
+{
+    return m_profileBinds.value(name);
+}
+
+void ProcessManager::setProfileBind(const QString& name, const QString& bind)
+{
+    QString normalized = bind.trimmed();
+    if (!normalized.isEmpty() && !HotkeyManager::isValidBind(normalized)) {
+        emit errorOccurred(QString(), tr("Invalid hotkey: %1").arg(normalized));
+        normalized.clear();
+    }
+    if (m_profileBinds.value(name) == normalized)
+        return;
+
+    if (normalized.isEmpty())
+        m_profileBinds.remove(name);
+    else
+        m_profileBinds.insert(name, normalized);
+
+    syncProfileHotkey(name);
+    save();
+    emit profilesChanged();
+}
+
+QString ProcessManager::profileHotkeyId(const QString& name) const
+{
+    return kProfilePrefix + name;
+}
+
+void ProcessManager::syncProfileHotkey(const QString& name)
+{
+    const QString bind = m_profileBinds.value(name);
+    if (!m_hotkeys->setHotkey(profileHotkeyId(name), bind)
+        && !bind.isEmpty()) {
+        emit errorOccurred(QString(),
+                           tr("Could not register profile hotkey \"%1\"").arg(bind));
+    }
+}
+
 QString ProcessManager::addProgram(const QString& path, const QString& bind)
 {
     const QFileInfo info(path);
@@ -58,6 +198,8 @@ QString ProcessManager::addProgram(const QString& path, const QString& bind)
     e.path = info.absoluteFilePath();
     e.name = info.fileName();
     e.bind = bind;
+    e.profile = m_profiles.isEmpty() ? QStringLiteral("Default")
+                                     : m_profiles.first();
 
     m_entries.insert(e.id, e);
     syncHotkey(e.id);
@@ -229,19 +371,33 @@ void ProcessManager::syncHotkey(const QString& id)
 
 void ProcessManager::save() const
 {
-    QJsonArray arr;
-
+    QJsonArray programs;
     QList<QString> ids = m_entries.keys();
     std::sort(ids.begin(), ids.end());
     for (const QString& id : ids) {
         const ProcessEntry& e = m_entries.value(id);
-        arr.append(QJsonObject{
-            {QStringLiteral("id"),   e.id},
-            {QStringLiteral("path"), e.path},
-            {QStringLiteral("bind"), e.bind},
-            {QStringLiteral("args"), e.args},
+        programs.append(QJsonObject{
+            {QStringLiteral("id"),      e.id},
+            {QStringLiteral("path"),    e.path},
+            {QStringLiteral("bind"),    e.bind},
+            {QStringLiteral("args"),    e.args},
+            {QStringLiteral("profile"), e.profile},
         });
     }
+
+    QJsonArray profilesArr;
+    for (const QString& p : m_profiles)
+        profilesArr.append(p);
+
+    QJsonObject profileBindsObj;
+    for (auto it = m_profileBinds.constBegin(); it != m_profileBinds.constEnd(); ++it)
+        profileBindsObj.insert(it.key(), it.value());
+
+    const QJsonObject root{
+        {QStringLiteral("programs"),     programs},
+        {QStringLiteral("profiles"),     profilesArr},
+        {QStringLiteral("profileBinds"), profileBindsObj},
+    };
 
     QFile file(configFilePath());
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
@@ -249,31 +405,60 @@ void ProcessManager::save() const
                  qPrintable(file.errorString()));
         return;
     }
-    file.write(QJsonDocument(arr).toJson(QJsonDocument::Indented));
+    file.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
 }
 
 void ProcessManager::load()
 {
     QFile file(configFilePath());
-    if (!file.exists())
+    if (!file.exists()) {
+        if (m_profiles.isEmpty())
+            m_profiles.append(QStringLiteral("Default"));
         return;
+    }
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
         qWarning("ProcessManager: cannot read config: %s",
                  qPrintable(file.errorString()));
+        if (m_profiles.isEmpty())
+            m_profiles.append(QStringLiteral("Default"));
         return;
     }
 
     const QByteArray raw = file.readAll();
     QJsonParseError parseError{};
     const QJsonDocument doc = QJsonDocument::fromJson(raw, &parseError);
-    if (doc.isNull() || !doc.isArray()) {
+    if (doc.isNull()) {
         qWarning("ProcessManager: invalid config JSON: %s",
                  qPrintable(parseError.errorString()));
         return;
     }
 
-    const QJsonArray arr = doc.array();
-    for (const QJsonValue& v : arr) {
+    QJsonArray programs;
+    if (doc.isArray()) {
+        programs = doc.array();
+    } else if (doc.isObject()) {
+        const QJsonObject root = doc.object();
+        programs = root.value(QStringLiteral("programs")).toArray();
+
+        const QJsonArray profilesArr = root.value(QStringLiteral("profiles")).toArray();
+        for (const QJsonValue& pv : profilesArr) {
+            const QString p = pv.toString().trimmed();
+            if (!p.isEmpty() && !m_profiles.contains(p))
+                m_profiles.append(p);
+        }
+
+        const QJsonObject binds = root.value(QStringLiteral("profileBinds")).toObject();
+        for (auto it = binds.constBegin(); it != binds.constEnd(); ++it) {
+            const QString b = it.value().toString();
+            if (!b.isEmpty() && HotkeyManager::isValidBind(b))
+                m_profileBinds.insert(it.key(), b);
+        }
+    }
+
+    if (m_profiles.isEmpty())
+        m_profiles.append(QStringLiteral("Default"));
+
+    for (const QJsonValue& v : programs) {
         if (!v.isObject())
             continue;
         const QJsonObject obj = v.toObject();
@@ -289,12 +474,18 @@ void ProcessManager::load()
         e.name = QFileInfo(path).fileName();
         e.bind = obj.value(QStringLiteral("bind")).toString();
         e.args = obj.value(QStringLiteral("args")).toString();
+        e.profile = obj.value(QStringLiteral("profile")).toString();
+        if (e.profile.isEmpty() || !m_profiles.contains(e.profile))
+            e.profile = m_profiles.first();
         if (!e.bind.isEmpty() && !HotkeyManager::isValidBind(e.bind))
             e.bind.clear();
 
         m_entries.insert(e.id, e);
         syncHotkey(e.id);
     }
+
+    for (const QString& name : m_profiles)
+        syncProfileHotkey(name);
 
     save();
 }

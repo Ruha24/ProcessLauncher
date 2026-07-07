@@ -13,6 +13,8 @@ ProcessListModel::ProcessListModel(ProcessManager* manager, QObject* parent)
             this, &ProcessListModel::onRunStateChanged);
     connect(m_manager, &ProcessManager::errorOccurred,
             this, &ProcessListModel::onErrorOccurred);
+    connect(m_manager, &ProcessManager::profilesChanged,
+            this, &ProcessListModel::profilesChanged);
 }
 
 int ProcessListModel::rowCount(const QModelIndex& parent) const
@@ -35,6 +37,7 @@ QVariant ProcessListModel::data(const QModelIndex& index, int role) const
     case PathRole:    return e.path;
     case RunningRole: return m_manager->isRunning(e.id);
     case ArgsRole:    return e.args;
+    case ProfileRole: return e.profile;
     }
     return QVariant();
 }
@@ -48,6 +51,7 @@ QHash<int, QByteArray> ProcessListModel::roleNames() const
         {PathRole,    QByteArrayLiteral("path")},
         {RunningRole, QByteArrayLiteral("running")},
         {ArgsRole,    QByteArrayLiteral("args")},
+        {ProfileRole, QByteArrayLiteral("profile")},
     };
 }
 
@@ -56,10 +60,12 @@ void ProcessListModel::addProgram(const QString& path, const QString& bind)
     m_manager->addProgram(path, bind);
 }
 
-void ProcessListModel::addProgramFromUrl(const QUrl& url, const QString& bind)
+void ProcessListModel::addProgramFromUrl(const QUrl& url, const QString& profile)
 {
     const QString path = url.isLocalFile() ? url.toLocalFile() : url.toString();
-    m_manager->addProgram(path, bind);
+    const QString id = m_manager->addProgram(path, QString());
+    if (!id.isEmpty() && !profile.isEmpty())
+        m_manager->setProgramProfile(id, profile);
 }
 
 void ProcessListModel::removeProgram(const QString& id)
@@ -75,6 +81,51 @@ void ProcessListModel::setBind(const QString& id, const QString& bind)
 void ProcessListModel::setArgs(const QString& id, const QString& args)
 {
     m_manager->setArgs(id, args);
+}
+
+void ProcessListModel::setProgramProfile(const QString& id, const QString& profile)
+{
+    m_manager->setProgramProfile(id, profile);
+}
+
+QStringList ProcessListModel::profiles() const
+{
+    return m_manager->profiles();
+}
+
+void ProcessListModel::addProfile(const QString& name)
+{
+    m_manager->addProfile(name);
+}
+
+void ProcessListModel::removeProfile(const QString& name)
+{
+    m_manager->removeProfile(name);
+}
+
+void ProcessListModel::renameProfile(const QString& oldName, const QString& newName)
+{
+    m_manager->renameProfile(oldName, newName);
+}
+
+void ProcessListModel::startProfile(const QString& name)
+{
+    m_manager->startProfile(name);
+}
+
+void ProcessListModel::stopProfile(const QString& name)
+{
+    m_manager->stopProfile(name);
+}
+
+QString ProcessListModel::profileBind(const QString& name) const
+{
+    return m_manager->profileBind(name);
+}
+
+void ProcessListModel::setProfileBind(const QString& name, const QString& bind)
+{
+    m_manager->setProfileBind(name, bind);
 }
 
 void ProcessListModel::start(const QString& id)

@@ -6,6 +6,7 @@
 #include <QSet>
 #include <QList>
 #include <QString>
+#include <QStringList>
 
 QT_BEGIN_NAMESPACE
 class QProcess;
@@ -22,6 +23,7 @@ struct ProcessEntry
     QString name;
     QString bind;
     QString args;
+    QString profile;
 };
 
 class ProcessManager : public QObject
@@ -36,10 +38,20 @@ public:
     void    removeProgram(const QString& id);
     void    setBind(const QString& id, const QString& bind);
     void    setArgs(const QString& id, const QString& args);
+    void    setProgramProfile(const QString& id, const QString& profile);
 
     void start(const QString& id);
     void stop(const QString& id);
     void stopAll();
+
+    QStringList profiles() const;
+    void        addProfile(const QString& name);
+    void        removeProfile(const QString& name);
+    void        renameProfile(const QString& oldName, const QString& newName);
+    void        startProfile(const QString& name);
+    void        stopProfile(const QString& name);
+    QString     profileBind(const QString& name) const;
+    void        setProfileBind(const QString& name, const QString& bind);
 
     bool isRunning(const QString& id) const;
 
@@ -50,19 +62,25 @@ public:
 signals:
     void runStateChanged(const QString& id, bool running);
     void listChanged();
+    void profilesChanged();
     void errorOccurred(const QString& id, const QString& message);
 
 private slots:
     void pollJobs();
+    void onHotkeyActivated(const QString& hotkeyId);
 
 private:
     void save() const;
     void load();
     void syncHotkey(const QString& id);
+    void syncProfileHotkey(const QString& name);
+    QString profileHotkeyId(const QString& name) const;
 
     QHash<QString, ProcessEntry>    m_entries;
     QHash<QString, JobController*>  m_jobs;
     QSet<QString>                   m_untracked;
+    QStringList                     m_profiles;
+    QHash<QString, QString>         m_profileBinds;
     QTimer*                         m_pollTimer = nullptr;
     HotkeyManager*                  m_hotkeys = nullptr;
 };
