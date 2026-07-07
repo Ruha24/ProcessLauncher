@@ -1,6 +1,7 @@
 #include "processmanager.h"
 #include "jobcontroller.h"
 #include "hotkeymanager.h"
+#include "shortcutresolver.h"
 
 #include <QProcess>
 #include <QTimer>
@@ -189,8 +190,23 @@ void ProcessManager::syncProfileHotkey(const QString& name)
 
 QString ProcessManager::addProgram(const QString& path, const QString& bind)
 {
-    const QFileInfo info(path);
-    if (path.isEmpty() || !info.exists() || !info.isFile())
+    QString realPath = path;
+
+    // Если перетащили/выбрали ярлык — тихо подменяем на настоящий путь к .exe.
+    if (ShortcutResolver::isShortcut(path)) {
+        bool ok = false;
+        const QString resolved = ShortcutResolver::resolve(path, &ok);
+        if (ok && !resolved.isEmpty()) {
+            realPath = resolved;
+        } else {
+            emit errorOccurred(QString(),
+                tr("Could not resolve shortcut: %1").arg(QFileInfo(path).fileName()));
+            return QString();
+        }
+    }
+
+    const QFileInfo info(realPath);
+    if (realPath.isEmpty() || !info.exists() || !info.isFile())
         return QString();
 
     ProcessEntry e;

@@ -50,6 +50,14 @@ ApplicationWindow {
         }
     }
 
+    Connections {
+        target: startupModel
+        function onErrorMessage(text) {
+            errorBanner.text = text
+            errorBanner.show()
+        }
+    }
+
     Rectangle {
         id: errorBanner
         property string text: ""
@@ -180,6 +188,15 @@ ApplicationWindow {
                     }
                 }
 
+                AppButton {
+                    text: qsTr("Startup")
+                    variant: "secondary"
+                    visible: startupModel.available()
+                    onClicked: {
+                        startupModel.refresh()
+                        startupDialog.open()
+                    }
+                }
                 AppButton {
                     text: qsTr("Stop all")
                     variant: "secondary"
@@ -420,7 +437,10 @@ ApplicationWindow {
         id: fileDialog
         title: qsTr("Choose a program")
         nameFilters: Qt.platform.os === "windows"
-                     ? [qsTr("Executables (*.exe)"), qsTr("All files (*)")]
+                     ? [qsTr("Programs and shortcuts (*.exe *.lnk *.url)"),
+                        qsTr("Executables (*.exe)"),
+                        qsTr("Shortcuts (*.lnk *.url)"),
+                        qsTr("All files (*)")]
                      : [qsTr("All files (*)")]
         onAccepted: processModel.addProgramFromUrl(selectedFile, window.activeProfile)
     }
@@ -796,6 +816,104 @@ ApplicationWindow {
                         processModel.setProgramProfile(moveDialog.targetId, modelData)
                         moveDialog.close()
                     }
+                }
+            }
+        }
+    }
+
+    Dialog {
+        id: startupDialog
+        title: qsTr("Windows startup")
+        anchors.centerIn: parent
+        width: Math.min(window.width - 2 * Theme.spacingL, 560)
+        height: Math.min(window.height - 2 * Theme.spacingL, 520)
+        modal: true
+        standardButtons: Dialog.Close
+
+        background: Rectangle {
+            color: Theme.surfaceElevated
+            radius: Theme.radius
+            border.width: 1
+            border.color: Theme.outline
+        }
+
+        contentItem: ColumnLayout {
+            spacing: Theme.spacingS
+
+            Text {
+                text: qsTr("Programs that launch when Windows starts.")
+                color: Theme.textMuted
+                font.pixelSize: TypeScale.caption
+                Layout.fillWidth: true
+            }
+
+            ListView {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                clip: true
+                model: startupModel
+                spacing: Theme.spacingS / 2
+
+                delegate: Rectangle {
+                    required property int index
+                    required property string name
+                    required property string command
+                    required property string source
+                    required property bool enabled
+
+                    width: ListView.view ? ListView.view.width : 0
+                    height: 58
+                    radius: Theme.radiusSmall
+                    color: Theme.surface
+                    border.width: 1
+                    border.color: Theme.outline
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: Theme.spacing
+                        anchors.rightMargin: Theme.spacing
+                        spacing: Theme.spacing
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 2
+                            Text {
+                                Layout.fillWidth: true
+                                text: name
+                                color: enabled ? Theme.textPrimary : Theme.textMuted
+                                font.pixelSize: TypeScale.base
+                                elide: Text.ElideRight
+                            }
+                            Text {
+                                Layout.fillWidth: true
+                                text: source + "  ·  " + command
+                                color: Theme.textMuted
+                                font.pixelSize: TypeScale.caption
+                                elide: Text.ElideMiddle
+                            }
+                        }
+
+                        AppButton {
+                            text: enabled ? qsTr("On") : qsTr("Off")
+                            variant: enabled ? "primary" : "secondary"
+                            Layout.preferredWidth: 60
+                            onClicked: startupModel.setEnabled(index, !enabled)
+                        }
+                        AppButton {
+                            text: "✕"
+                            variant: "secondary"
+                            Layout.preferredWidth: 40
+                            onClicked: startupModel.removeEntry(index)
+                        }
+                    }
+                }
+
+                Text {
+                    anchors.centerIn: parent
+                    visible: parent.count === 0
+                    text: qsTr("No startup programs found.")
+                    color: Theme.textMuted
+                    font.pixelSize: TypeScale.base
                 }
             }
         }

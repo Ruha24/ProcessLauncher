@@ -32,6 +32,10 @@ qt_add_executable(appProcessLauncher
     src/processfiltermodel.h
     src/autostartmanager.cpp
     src/autostartmanager.h
+    src/shortcutresolver.cpp
+    src/shortcutresolver.h
+    src/startupmanager.cpp
+    src/startupmanager.h
 )
 
 qt_add_qml_module(appProcessLauncher
@@ -43,16 +47,12 @@ qt_add_qml_module(appProcessLauncher
         qml/ProcessRow.qml
 )
 
-# Иконка приложения/трея как ресурс с префиксом /icons -> ":/icons/app.png".
 qt_add_resources(appProcessLauncher "app_icons"
     PREFIX "/"
     FILES
         icons/app.png
 )
 
-# Линкуем ПЛАГИН модуля темы (themeplugin = URI "Theme" + "plugin").
-# Он статический (тема объявлена как STATIC-библиотека), поэтому линкуется
-# в приложение. Ссылку на его символ создаёт Q_IMPORT_QML_PLUGIN в main.cpp.
 target_link_libraries(appProcessLauncher
     PRIVATE
         Qt6::Quick
@@ -62,7 +62,6 @@ target_link_libraries(appProcessLauncher
         themeplugin
 )
 
-# Windows: иконка самого .exe (в проводнике/панели задач) + без консоли.
 if(WIN32)
     target_sources(appProcessLauncher PRIVATE app.rc)
     set_target_properties(appProcessLauncher PROPERTIES
