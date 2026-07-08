@@ -223,6 +223,24 @@ void ProcessListModel::setAutoStartProfile(const QString& name)
     m_manager->setAutoStartProfile(name);
 }
 
+bool ProcessListModel::exportConfig(const QUrl& url) const
+{
+    const QString path = url.isLocalFile() ? url.toLocalFile() : url.toString();
+    return m_manager->exportConfig(path);
+}
+
+bool ProcessListModel::importConfig(const QUrl& url)
+{
+    const QString path = url.isLocalFile() ? url.toLocalFile() : url.toString();
+    const bool ok = m_manager->importConfig(path);
+    if (ok) {
+        beginResetModel();
+        m_rows = m_manager->entries();
+        endResetModel();
+    }
+    return ok;
+}
+
 int ProcessListModel::indexOfId(const QString& id) const
 {
     for (int i = 0; i < m_rows.size(); ++i) {

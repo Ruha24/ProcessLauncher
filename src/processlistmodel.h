@@ -48,6 +48,9 @@ public:
     Q_INVOKABLE QString autoStartProfile() const;
     Q_INVOKABLE void setAutoStartProfile(const QString& name);
 
+    Q_INVOKABLE bool exportConfig(const QUrl& url) const;
+    Q_INVOKABLE bool importConfig(const QUrl& url);
+
     Q_INVOKABLE void addProgramFromUrl(const QUrl& url, const QString& profile);
 
     Q_INVOKABLE void openFileLocation(const QString& path) const;

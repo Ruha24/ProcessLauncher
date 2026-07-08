@@ -500,6 +500,38 @@ ApplicationWindow {
     }
 
     FileDialog {
+        id: exportDialog
+        title: qsTr("Export configuration")
+        fileMode: FileDialog.SaveFile
+        nameFilters: [qsTr("Config files (*.json)")]
+        defaultSuffix: "json"
+        onAccepted: {
+            if (!processModel.exportConfig(selectedFile))
+                errorBanner.text = qsTr("Export failed")
+            else
+                errorBanner.text = qsTr("Configuration exported")
+            errorBanner.show()
+        }
+    }
+
+    FileDialog {
+        id: importDialog
+        title: qsTr("Import configuration")
+        fileMode: FileDialog.OpenFile
+        nameFilters: [qsTr("Config files (*.json)")]
+        onAccepted: {
+            if (!processModel.importConfig(selectedFile)) {
+                errorBanner.text = qsTr("Import failed — invalid file")
+                errorBanner.show()
+            } else {
+                settingsDialog.close()
+                window.refreshProfiles()
+                window.refreshCounts()
+            }
+        }
+    }
+
+    FileDialog {
         id: fileDialog
         title: qsTr("Choose a program")
         nameFilters: Qt.platform.os === "windows"
@@ -992,6 +1024,38 @@ ApplicationWindow {
                                  ? "primary" : "secondary"
                         onClicked: processModel.setAutoStartProfile(modelData)
                     }
+                }
+            }
+
+            Rectangle { Layout.fillWidth: true; height: 1; color: Theme.outline }
+
+            Text {
+                text: qsTr("Backup")
+                color: Theme.textPrimary
+                font.pixelSize: TypeScale.base
+                Layout.fillWidth: true
+            }
+            Text {
+                text: qsTr("Move your settings to another PC. Program paths may differ there.")
+                color: Theme.textMuted
+                font.pixelSize: TypeScale.caption
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: Theme.spacingS
+                AppButton {
+                    text: qsTr("Export…")
+                    variant: "secondary"
+                    Layout.fillWidth: true
+                    onClicked: exportDialog.open()
+                }
+                AppButton {
+                    text: qsTr("Import…")
+                    variant: "secondary"
+                    Layout.fillWidth: true
+                    onClicked: importDialog.open()
                 }
             }
         }

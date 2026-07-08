@@ -73,6 +73,9 @@ public:
 
     QString configFilePath() const;
 
+    bool exportConfig(const QString& path) const;
+    bool importConfig(const QString& path);
+
 signals:
     void runStateChanged(const QString& id, bool running);
     void listChanged();

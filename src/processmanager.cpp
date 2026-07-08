@@ -13,6 +13,7 @@
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QJsonObject>
+#include <QUrl>
 #include <algorithm>
 
 namespace {
@@ -55,6 +56,56 @@ QString ProcessManager::configFilePath() const
         QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
     QDir().mkpath(dir);
     return dir + QStringLiteral("/programs.json");
+}
+
+bool ProcessManager::exportConfig(const QString& path) const
+{
+    save();
+    QString target = path;
+    if (QUrl(path).isLocalFile())
+        target = QUrl(path).toLocalFile();
+
+    QFile::remove(target);
+    return QFile::copy(configFilePath(), target);
+}
+
+bool ProcessManager::importConfig(const QString& path)
+{
+    QString source = path;
+    if (QUrl(path).isLocalFile())
+        source = QUrl(path).toLocalFile();
+
+    QFile in(source);
+    if (!in.open(QIODevice::ReadOnly | QIODevice::Text))
+        return false;
+    const QByteArray raw = in.readAll();
+    in.close();
+
+    QJsonParseError err{};
+    const QJsonDocument doc = QJsonDocument::fromJson(raw, &err);
+    if (doc.isNull() || (!doc.isObject() && !doc.isArray()))
+        return false;
+
+    stopAll();
+    m_hotkeys->clearAll();
+    m_launchQueue.clear();
+
+    m_entries.clear();
+    m_profiles.clear();
+    m_profileBinds.clear();
+    m_launchDelayMs = 0;
+    m_autoStartProfile.clear();
+
+    QFile out(configFilePath());
+    if (!out.open(QIODevice::WriteOnly | QIODevice::Text))
+        return false;
+    out.write(raw);
+    out.close();
+
+    load();
+    emit listChanged();
+    emit profilesChanged();
+    return true;
 }
 
 void ProcessManager::onHotkeyActivated(const QString& hotkeyId)
