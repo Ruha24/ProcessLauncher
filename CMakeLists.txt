@@ -36,6 +36,8 @@ qt_add_executable(appProcessLauncher
     src/startupmanager.h
     src/windowstate.cpp
     src/windowstate.h
+    src/eventlog.cpp
+    src/eventlog.h
 )
 
 qt_add_qml_module(appProcessLauncher

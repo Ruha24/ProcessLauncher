@@ -13,6 +13,7 @@
 #include "autostartmanager.h"
 #include "startupmanager.h"
 #include "windowstate.h"
+#include "eventlog.h"
 
 Q_IMPORT_QML_PLUGIN(ThemePlugin)
 
@@ -37,6 +38,14 @@ int main(int argc, char* argv[])
     AutostartManager autostart;
     StartupModel startupModel;
     WindowState windowState;
+    EventLogModel eventLog;
+
+    QObject::connect(&manager, &ProcessManager::processExited,
+                     &eventLog, &EventLogModel::logCrash);
+    QObject::connect(&manager, &ProcessManager::errorOccurred,
+                     &eventLog, [&eventLog](const QString&, const QString& msg) {
+                         eventLog.logError(msg);
+                     });
 
     QQmlApplicationEngine engine;
     engine.addImageProvider(QStringLiteral("exeicons"), new IconProvider());
@@ -46,6 +55,7 @@ int main(int argc, char* argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("autostart"), &autostart);
     engine.rootContext()->setContextProperty(QStringLiteral("startupModel"), &startupModel);
     engine.rootContext()->setContextProperty(QStringLiteral("windowState"), &windowState);
+    engine.rootContext()->setContextProperty(QStringLiteral("eventLog"), &eventLog);
 
     QObject::connect(
         &engine, &QQmlApplicationEngine::objectCreationFailed,

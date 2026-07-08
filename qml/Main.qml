@@ -255,6 +255,11 @@ ApplicationWindow {
                     }
                 }
                 AppButton {
+                    text: qsTr("Log")
+                    variant: "secondary"
+                    onClicked: logDialog.open()
+                }
+                AppButton {
                     text: qsTr("Startup")
                     variant: "secondary"
                     visible: startupModel.available()
@@ -1360,6 +1365,102 @@ ApplicationWindow {
                     variant: "secondary"
                     Layout.fillWidth: true
                     onClicked: importDialog.open()
+                }
+            }
+        }
+    }
+
+    Dialog {
+        id: logDialog
+        title: qsTr("Event log")
+        anchors.centerIn: parent
+        width: Math.min(window.width - 2 * Theme.spacingL, 600)
+        height: Math.min(window.height - 2 * Theme.spacingL, 520)
+        modal: true
+        standardButtons: Dialog.Close
+
+        background: Rectangle {
+            color: Theme.surfaceElevated
+            radius: Theme.radius
+            border.width: 1
+            border.color: Theme.outline
+        }
+
+        contentItem: ColumnLayout {
+            spacing: Theme.spacingS
+
+            RowLayout {
+                Layout.fillWidth: true
+                Text {
+                    Layout.fillWidth: true
+                    text: qsTr("Crashes and errors, newest first.")
+                    color: Theme.textMuted
+                    font.pixelSize: TypeScale.caption
+                }
+                AppButton {
+                    text: qsTr("Clear")
+                    variant: "secondary"
+                    Layout.preferredWidth: 70
+                    onClicked: eventLog.clear()
+                }
+            }
+
+            ListView {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                clip: true
+                model: eventLog
+                spacing: Theme.spacingS / 2
+
+                delegate: Rectangle {
+                    required property string time
+                    required property string kind
+                    required property string text
+
+                    width: ListView.view ? ListView.view.width : 0
+                    height: 54
+                    radius: Theme.radiusSmall
+                    color: Theme.surface
+                    border.width: 1
+                    border.color: Theme.outline
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: Theme.spacing
+                        anchors.rightMargin: Theme.spacing
+                        spacing: Theme.spacing
+
+                        Rectangle {
+                            Layout.preferredWidth: 8
+                            Layout.preferredHeight: 8
+                            radius: 4
+                            color: kind === "Crash" ? Theme.danger : Theme.textMuted
+                        }
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 2
+                            Text {
+                                Layout.fillWidth: true
+                                text: kind + "  ·  " + text
+                                color: Theme.textPrimary
+                                font.pixelSize: TypeScale.base
+                                elide: Text.ElideRight
+                            }
+                            Text {
+                                text: time
+                                color: Theme.textMuted
+                                font.pixelSize: TypeScale.caption
+                            }
+                        }
+                    }
+                }
+
+                Text {
+                    anchors.centerIn: parent
+                    visible: parent.count === 0
+                    text: qsTr("No events yet.")
+                    color: Theme.textMuted
+                    font.pixelSize: TypeScale.base
                 }
             }
         }
