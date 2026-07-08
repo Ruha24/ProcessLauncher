@@ -29,7 +29,7 @@ jobs:
 
       - name: Install build tools via choco
         run: |
-        choco install mingw ninja --no-progress -y
+            choco install mingw ninja --no-progress -y
 
       - name: Add MinGW to PATH
         shell: pwsh
