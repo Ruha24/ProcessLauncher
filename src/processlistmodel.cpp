@@ -50,6 +50,7 @@ QVariant ProcessListModel::data(const QModelIndex& index, int role) const
     case RunningRole: return m_manager->isRunning(e.id);
     case ArgsRole:    return e.args;
     case ProfileRole: return e.profile;
+    case WatchRole:   return e.watch;
     }
     return QVariant();
 }
@@ -64,6 +65,7 @@ QHash<int, QByteArray> ProcessListModel::roleNames() const
         {RunningRole, QByteArrayLiteral("running")},
         {ArgsRole,    QByteArrayLiteral("args")},
         {ProfileRole, QByteArrayLiteral("profile")},
+        {WatchRole,   QByteArrayLiteral("watch")},
     };
 }
 
@@ -189,6 +191,36 @@ void ProcessListModel::stop(const QString& id)
 void ProcessListModel::stopAll()
 {
     m_manager->stopAll();
+}
+
+void ProcessListModel::restart(const QString& id)
+{
+    m_manager->restart(id);
+}
+
+void ProcessListModel::setWatch(const QString& id, bool on)
+{
+    m_manager->setWatch(id, on);
+}
+
+int ProcessListModel::launchDelayMs() const
+{
+    return m_manager->launchDelayMs();
+}
+
+void ProcessListModel::setLaunchDelayMs(int ms)
+{
+    m_manager->setLaunchDelayMs(ms);
+}
+
+QString ProcessListModel::autoStartProfile() const
+{
+    return m_manager->autoStartProfile();
+}
+
+void ProcessListModel::setAutoStartProfile(const QString& name)
+{
+    m_manager->setAutoStartProfile(name);
 }
 
 int ProcessListModel::indexOfId(const QString& id) const

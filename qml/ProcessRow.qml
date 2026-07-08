@@ -13,9 +13,12 @@ Item {
     required property bool    running
     required property string args
     required property string profile
+    required property bool    watch
 
     signal startRequested(string id)
     signal stopRequested(string id)
+    signal restartRequested(string id)
+    signal toggleWatchRequested(string id, bool on)
     signal editBindRequested(string id, string currentBind)
     signal editArgsRequested(string id, string currentArgs)
     signal moveRequested(string id, string currentProfile)
@@ -85,6 +88,16 @@ Item {
                                          : row.startRequested(row.procId)
             }
             MenuItem {
+                text: qsTr("Restart")
+                enabled: row.running
+                onTriggered: row.restartRequested(row.procId)
+            }
+            MenuItem {
+                text: row.watch ? qsTr("✓ Auto-restart if it stops")
+                                : qsTr("Auto-restart if it stops")
+                onTriggered: row.toggleWatchRequested(row.procId, !row.watch)
+            }
+            MenuItem {
                 text: qsTr("Open file location")
                 onTriggered: row.openFolderRequested(row.path)
             }
@@ -132,7 +145,7 @@ Item {
                 }
                 Text {
                     Layout.fillWidth: true
-                    visible: row.bind.length > 0 || row.running || row.args.length > 0
+                    visible: row.bind.length > 0 || row.running || row.args.length > 0 || row.watch
                     text: {
                         var left = row.running
                             ? (row.bind.length > 0 ? qsTr("Running · %1").arg(row.bind)
@@ -142,6 +155,8 @@ Item {
                             left += "  ·  " + row.uptimeText
                         if (row.args.length > 0)
                             left = left.length > 0 ? left + "  ·  " + row.args : row.args
+                        if (row.watch)
+                            left = left.length > 0 ? left + "  ·  ⭮ auto" : "⭮ auto"
                         return left
                     }
                     color: row.running ? Theme.running : Theme.textMuted

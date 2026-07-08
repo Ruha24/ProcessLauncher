@@ -231,6 +231,14 @@ ApplicationWindow {
                 }
 
                 AppButton {
+                    text: qsTr("Settings")
+                    variant: "secondary"
+                    onClicked: {
+                        settingsDelay.text = processModel.launchDelayMs().toString()
+                        settingsDialog.open()
+                    }
+                }
+                AppButton {
                     text: qsTr("Startup")
                     variant: "secondary"
                     visible: startupModel.available()
@@ -395,6 +403,8 @@ ApplicationWindow {
             onActivated: (id, running) => {
                 if (!running) { processModel.start(id); window.refreshCounts() }
             }
+            onRestartRequested: (id) => { processModel.restart(id); window.refreshCounts() }
+            onToggleWatchRequested: (id, on) => processModel.setWatch(id, on)
             onOpenFolderRequested: (path) => processModel.openFileLocation(path)
             onCopyPathRequested: (path) => processModel.copyPath(path)
             onEditBindRequested: (id, currentBind) => {
@@ -900,6 +910,90 @@ ApplicationWindow {
             color: Theme.textPrimary
             font.pixelSize: TypeScale.base
             wrapMode: Text.WordWrap
+        }
+    }
+
+    Dialog {
+        id: settingsDialog
+        title: qsTr("Settings")
+        anchors.centerIn: parent
+        width: 380
+        modal: true
+        standardButtons: Dialog.Ok | Dialog.Cancel
+
+        onAccepted: {
+            var ms = parseInt(settingsDelay.text)
+            if (isNaN(ms) || ms < 0) ms = 0
+            processModel.setLaunchDelayMs(ms)
+        }
+
+        background: Rectangle {
+            color: Theme.surfaceElevated
+            radius: Theme.radius
+            border.width: 1
+            border.color: Theme.outline
+        }
+
+        contentItem: ColumnLayout {
+            spacing: Theme.spacing
+
+            Text {
+                text: qsTr("Delay between launches in a profile (ms)")
+                color: Theme.textPrimary
+                font.pixelSize: TypeScale.base
+                Layout.fillWidth: true
+            }
+            Text {
+                text: qsTr("0 = launch all at once. E.g. 1000 = one program per second.")
+                color: Theme.textMuted
+                font.pixelSize: TypeScale.caption
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+            }
+            TextField {
+                id: settingsDelay
+                Layout.fillWidth: true
+                inputMethodHints: Qt.ImhDigitsOnly
+                color: Theme.textPrimary
+                placeholderText: "0"
+                placeholderTextColor: Theme.textMuted
+                font.pixelSize: TypeScale.base
+                background: Rectangle {
+                    radius: Theme.radiusSmall
+                    color: Theme.surface
+                    border.width: 1
+                    border.color: settingsDelay.activeFocus ? Theme.interactive : Theme.outline
+                }
+            }
+
+            Rectangle { Layout.fillWidth: true; height: 1; color: Theme.outline }
+
+            Text {
+                text: qsTr("Auto-start a profile when the launcher opens")
+                color: Theme.textPrimary
+                font.pixelSize: TypeScale.base
+                Layout.fillWidth: true
+            }
+            Flow {
+                Layout.fillWidth: true
+                spacing: Theme.spacingS
+
+                AppButton {
+                    text: qsTr("None")
+                    variant: processModel.autoStartProfile() === "" ? "primary" : "secondary"
+                    onClicked: processModel.setAutoStartProfile("")
+                }
+                Repeater {
+                    model: window.profileList
+                    AppButton {
+                        required property string modelData
+                        text: modelData
+                        variant: processModel.autoStartProfile() === modelData
+                                 ? "primary" : "secondary"
+                        onClicked: processModel.setAutoStartProfile(modelData)
+                    }
+                }
+            }
         }
     }
 

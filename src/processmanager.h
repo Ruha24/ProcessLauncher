@@ -25,6 +25,7 @@ struct ProcessEntry
     QString bind;
     QString args;
     QString profile;
+    bool    watch = false;
 };
 
 class ProcessManager : public QObject
@@ -43,7 +44,16 @@ public:
 
     void start(const QString& id);
     void stop(const QString& id);
+    void restart(const QString& id);
     void stopAll();
+
+    void setWatch(const QString& id, bool on);
+    bool watch(const QString& id) const;
+
+    int  launchDelayMs() const;
+    void setLaunchDelayMs(int ms);
+    QString autoStartProfile() const;
+    void setAutoStartProfile(const QString& name);
 
     QStringList profiles() const;
     void        addProfile(const QString& name);
@@ -74,6 +84,7 @@ signals:
 private slots:
     void pollJobs();
     void onHotkeyActivated(const QString& hotkeyId);
+    void processLaunchQueue();
 
 private:
     void save() const;
@@ -88,7 +99,11 @@ private:
     QSet<QString>                   m_untracked;
     QStringList                     m_profiles;
     QHash<QString, QString>         m_profileBinds;
+    int                             m_launchDelayMs = 0;
+    QString                         m_autoStartProfile;
+    QStringList                     m_launchQueue;
     QTimer*                         m_pollTimer = nullptr;
+    QTimer*                         m_launchTimer = nullptr;
     HotkeyManager*                  m_hotkeys = nullptr;
 };
 

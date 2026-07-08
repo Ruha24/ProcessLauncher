@@ -22,6 +22,7 @@ public:
         RunningRole,
         ArgsRole,
         ProfileRole,
+        WatchRole,
     };
     Q_ENUM(Role)
 
@@ -38,7 +39,14 @@ public:
     Q_INVOKABLE void setProgramProfile(const QString& id, const QString& profile);
     Q_INVOKABLE void start(const QString& id);
     Q_INVOKABLE void stop(const QString& id);
+    Q_INVOKABLE void restart(const QString& id);
     Q_INVOKABLE void stopAll();
+    Q_INVOKABLE void setWatch(const QString& id, bool on);
+
+    Q_INVOKABLE int  launchDelayMs() const;
+    Q_INVOKABLE void setLaunchDelayMs(int ms);
+    Q_INVOKABLE QString autoStartProfile() const;
+    Q_INVOKABLE void setAutoStartProfile(const QString& name);
 
     Q_INVOKABLE void addProgramFromUrl(const QUrl& url, const QString& profile);
 

@@ -23,15 +23,23 @@ const QString kProfilePrefix = QStringLiteral("profile:");
 ProcessManager::ProcessManager(QObject* parent)
     : QObject(parent)
     , m_pollTimer(new QTimer(this))
+    , m_launchTimer(new QTimer(this))
     , m_hotkeys(new HotkeyManager(this))
 {
     m_pollTimer->setInterval(kPollIntervalMs);
     connect(m_pollTimer, &QTimer::timeout, this, &ProcessManager::pollJobs);
 
+    m_launchTimer->setSingleShot(true);
+    connect(m_launchTimer, &QTimer::timeout,
+            this, &ProcessManager::processLaunchQueue);
+
     connect(m_hotkeys, &HotkeyManager::activated,
             this, &ProcessManager::onHotkeyActivated);
 
     load();
+
+    if (!m_autoStartProfile.isEmpty() && m_profiles.contains(m_autoStartProfile))
+        startProfile(m_autoStartProfile);
 }
 
 ProcessManager::~ProcessManager()
@@ -132,11 +140,35 @@ void ProcessManager::setProgramProfile(const QString& id, const QString& profile
 
 void ProcessManager::startProfile(const QString& name)
 {
-    const QList<QString> ids = m_entries.keys();
-    for (const QString& id : ids) {
-        if (m_entries.value(id).profile == name)
-            start(id);
+    QList<QString> ids;
+    const QList<QString> allIds = m_entries.keys();
+    for (const QString& id : allIds) {
+        if (m_entries.value(id).profile == name && !isRunning(id))
+            ids.append(id);
     }
+
+    if (m_launchDelayMs <= 0) {
+        for (const QString& id : ids)
+            start(id);
+        return;
+    }
+
+    m_launchQueue.append(ids);
+    if (!m_launchTimer->isActive() && !m_launchQueue.isEmpty())
+        processLaunchQueue();
+}
+
+void ProcessManager::processLaunchQueue()
+{
+    if (m_launchQueue.isEmpty())
+        return;
+
+    const QString id = m_launchQueue.takeFirst();
+    if (m_entries.contains(id) && !isRunning(id))
+        start(id);
+
+    if (!m_launchQueue.isEmpty())
+        m_launchTimer->start(m_launchDelayMs);
 }
 
 void ProcessManager::stopProfile(const QString& name)
@@ -335,6 +367,59 @@ void ProcessManager::stopAll()
         stop(id);
 }
 
+void ProcessManager::restart(const QString& id)
+{
+    if (!m_entries.contains(id))
+        return;
+    stop(id);
+    QTimer::singleShot(400, this, [this, id]() { start(id); });
+}
+
+void ProcessManager::setWatch(const QString& id, bool on)
+{
+    auto it = m_entries.find(id);
+    if (it == m_entries.end() || it->watch == on)
+        return;
+    it->watch = on;
+    save();
+    emit listChanged();
+}
+
+bool ProcessManager::watch(const QString& id) const
+{
+    const auto it = m_entries.constFind(id);
+    return it != m_entries.constEnd() && it->watch;
+}
+
+int ProcessManager::launchDelayMs() const
+{
+    return m_launchDelayMs;
+}
+
+void ProcessManager::setLaunchDelayMs(int ms)
+{
+    if (ms < 0) ms = 0;
+    if (m_launchDelayMs == ms)
+        return;
+    m_launchDelayMs = ms;
+    save();
+    emit profilesChanged();
+}
+
+QString ProcessManager::autoStartProfile() const
+{
+    return m_autoStartProfile;
+}
+
+void ProcessManager::setAutoStartProfile(const QString& name)
+{
+    if (m_autoStartProfile == name)
+        return;
+    m_autoStartProfile = name;
+    save();
+    emit profilesChanged();
+}
+
 bool ProcessManager::isRunning(const QString& id) const
 {
     if (m_untracked.contains(id))
@@ -401,10 +486,25 @@ void ProcessManager::pollJobs()
         m_startTimes.remove(id);
 
         const auto e = m_entries.constFind(id);
-        if (e != m_entries.constEnd())
-            emit processExited(e->name, e->profile);
+        const bool shouldWatch = (e != m_entries.constEnd() && e->watch);
+        QString exitedName, exitedProfile;
+        if (e != m_entries.constEnd()) {
+            exitedName = e->name;
+            exitedProfile = e->profile;
+        }
 
         emit runStateChanged(id, false);
+
+        if (shouldWatch) {
+            emit processExited(exitedName,
+                               tr("%1 — restarting").arg(exitedProfile));
+            QTimer::singleShot(500, this, [this, id]() {
+                if (m_entries.contains(id) && watch(id) && !isRunning(id))
+                    start(id);
+            });
+        } else {
+            emit processExited(exitedName, exitedProfile);
+        }
     }
 
     if (m_jobs.isEmpty() && m_pollTimer->isActive())
@@ -438,6 +538,7 @@ void ProcessManager::save() const
             {QStringLiteral("bind"),    e.bind},
             {QStringLiteral("args"),    e.args},
             {QStringLiteral("profile"), e.profile},
+            {QStringLiteral("watch"),   e.watch},
         });
     }
 
@@ -453,6 +554,8 @@ void ProcessManager::save() const
         {QStringLiteral("programs"),     programs},
         {QStringLiteral("profiles"),     profilesArr},
         {QStringLiteral("profileBinds"), profileBindsObj},
+        {QStringLiteral("launchDelayMs"), m_launchDelayMs},
+        {QStringLiteral("autoStartProfile"), m_autoStartProfile},
     };
 
     QFile file(configFilePath());
@@ -509,6 +612,9 @@ void ProcessManager::load()
             if (!b.isEmpty() && HotkeyManager::isValidBind(b))
                 m_profileBinds.insert(it.key(), b);
         }
+
+        m_launchDelayMs = root.value(QStringLiteral("launchDelayMs")).toInt(0);
+        m_autoStartProfile = root.value(QStringLiteral("autoStartProfile")).toString();
     }
 
     if (m_profiles.isEmpty())
@@ -531,6 +637,7 @@ void ProcessManager::load()
         e.bind = obj.value(QStringLiteral("bind")).toString();
         e.args = obj.value(QStringLiteral("args")).toString();
         e.profile = obj.value(QStringLiteral("profile")).toString();
+        e.watch = obj.value(QStringLiteral("watch")).toBool(false);
         if (e.profile.isEmpty() || !m_profiles.contains(e.profile))
             e.profile = m_profiles.first();
         if (!e.bind.isEmpty() && !HotkeyManager::isValidBind(e.bind))
