@@ -54,6 +54,8 @@ public:
 
     int  launchDelayMs() const;
     void setLaunchDelayMs(int ms);
+    int  pollInterval() const;
+    void setPollInterval(int ms);
     QString autoStartProfile() const;
     void setAutoStartProfile(const QString& name);
 

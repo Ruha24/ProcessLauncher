@@ -30,3 +30,38 @@ void WindowState::save(int x, int y, int width, int height)
     s.setValue(QStringLiteral("height"), height);
     s.endGroup();
 }
+
+QVariant WindowState::value(const QString& key, const QVariant& def) const
+{
+    QSettings s;
+    s.beginGroup(QStringLiteral("app"));
+    const QVariant v = s.value(key, def);
+    s.endGroup();
+    return v;
+}
+
+void WindowState::setValue(const QString& key, const QVariant& val)
+{
+    QSettings s;
+    s.beginGroup(QStringLiteral("app"));
+    s.setValue(key, val);
+    s.endGroup();
+}
+
+bool WindowState::boolValue(const QString& key, bool def) const
+{
+    QSettings s;
+    s.beginGroup(QStringLiteral("app"));
+    const QVariant v = s.value(key);
+    s.endGroup();
+    if (!v.isValid())
+        return def;
+    if (v.typeId() == QMetaType::Bool)
+        return v.toBool();
+    const QString str = v.toString().trimmed().toLower();
+    if (str == QLatin1String("true") || str == QLatin1String("1"))
+        return true;
+    if (str == QLatin1String("false") || str == QLatin1String("0"))
+        return false;
+    return def;
+}

@@ -47,6 +47,8 @@ public:
 
     Q_INVOKABLE int  launchDelayMs() const;
     Q_INVOKABLE void setLaunchDelayMs(int ms);
+    Q_INVOKABLE int  pollInterval() const;
+    Q_INVOKABLE void setPollInterval(int ms);
     Q_INVOKABLE QString autoStartProfile() const;
     Q_INVOKABLE void setAutoStartProfile(const QString& name);
 

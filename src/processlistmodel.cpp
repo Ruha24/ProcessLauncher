@@ -240,6 +240,16 @@ void ProcessListModel::setLaunchDelayMs(int ms)
     m_manager->setLaunchDelayMs(ms);
 }
 
+int ProcessListModel::pollInterval() const
+{
+    return m_manager->pollInterval();
+}
+
+void ProcessListModel::setPollInterval(int ms)
+{
+    m_manager->setPollInterval(ms);
+}
+
 QString ProcessListModel::autoStartProfile() const
 {
     return m_manager->autoStartProfile();

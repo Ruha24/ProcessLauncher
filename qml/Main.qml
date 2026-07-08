@@ -14,6 +14,8 @@ ApplicationWindow {
     title: qsTr("Process Launcher")
     color: Theme.surface
 
+    property bool minimizeToTray: true
+
     Component.onCompleted: {
         var g = windowState.load()
         if (g.width > 0 && g.height > 0) {
@@ -24,6 +26,10 @@ ApplicationWindow {
             window.x = g.x
             window.y = g.y
         }
+        Theme.dark = windowState.boolValue("theme_dark", true)
+        window.minimizeToTray = windowState.boolValue("minimize_to_tray", true)
+        var poll = parseInt(windowState.value("poll_interval", 0))
+        if (poll > 0) processModel.setPollInterval(poll)
         refreshProfiles()
         refreshCounts()
     }
@@ -75,9 +81,11 @@ ApplicationWindow {
     }
 
     onClosing: (close) => {
-        if (tray.isAvailable()) {
+        if (window.minimizeToTray && tray.isAvailable()) {
             close.accepted = false
             tray.hideWindow()
+        } else {
+            Qt.quit()
         }
     }
 
@@ -242,6 +250,7 @@ ApplicationWindow {
                     variant: "secondary"
                     onClicked: {
                         settingsDelay.text = processModel.launchDelayMs().toString()
+                        settingsPoll.text = processModel.pollInterval().toString()
                         settingsDialog.open()
                     }
                 }
@@ -1152,6 +1161,11 @@ ApplicationWindow {
             var ms = parseInt(settingsDelay.text)
             if (isNaN(ms) || ms < 0) ms = 0
             processModel.setLaunchDelayMs(ms)
+
+            var poll = parseInt(settingsPoll.text)
+            if (isNaN(poll)) poll = 1200
+            processModel.setPollInterval(poll)
+            windowState.setValue("poll_interval", poll)
         }
 
         background: Rectangle {
@@ -1163,6 +1177,101 @@ ApplicationWindow {
 
         contentItem: ColumnLayout {
             spacing: Theme.spacing
+
+            RowLayout {
+                Layout.fillWidth: true
+                Text {
+                    Layout.fillWidth: true
+                    text: qsTr("Dark theme")
+                    color: Theme.textPrimary
+                    font.pixelSize: TypeScale.base
+                }
+                Rectangle {
+                    width: 46; height: 26; radius: 13
+                    color: Theme.dark ? Theme.interactive : Theme.surfaceHover
+                    border.width: 1
+                    border.color: Theme.dark ? Theme.interactive : Theme.outline
+                    Behavior on color { ColorAnimation { duration: Theme.animFast } }
+                    Rectangle {
+                        width: 20; height: 20; radius: 10
+                        color: "#ffffff"
+                        y: 3
+                        x: Theme.dark ? parent.width - width - 3 : 3
+                        Behavior on x { NumberAnimation { duration: Theme.animFast } }
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: {
+                            Theme.dark = !Theme.dark
+                            windowState.setValue("theme_dark", Theme.dark)
+                        }
+                    }
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Text {
+                    Layout.fillWidth: true
+                    text: qsTr("Minimize to tray on close")
+                    color: Theme.textPrimary
+                    font.pixelSize: TypeScale.base
+                }
+                Rectangle {
+                    width: 46; height: 26; radius: 13
+                    color: window.minimizeToTray ? Theme.interactive : Theme.surfaceHover
+                    border.width: 1
+                    border.color: window.minimizeToTray ? Theme.interactive : Theme.outline
+                    Behavior on color { ColorAnimation { duration: Theme.animFast } }
+                    Rectangle {
+                        width: 20; height: 20; radius: 10
+                        color: "#ffffff"
+                        y: 3
+                        x: window.minimizeToTray ? parent.width - width - 3 : 3
+                        Behavior on x { NumberAnimation { duration: Theme.animFast } }
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: {
+                            window.minimizeToTray = !window.minimizeToTray
+                            windowState.setValue("minimize_to_tray", window.minimizeToTray)
+                        }
+                    }
+                }
+            }
+
+            Rectangle { Layout.fillWidth: true; height: 1; color: Theme.outline }
+
+            Text {
+                text: qsTr("Status poll interval (ms)")
+                color: Theme.textPrimary
+                font.pixelSize: TypeScale.base
+                Layout.fillWidth: true
+            }
+            Text {
+                text: qsTr("How often running state and uptime refresh. 200–10000.")
+                color: Theme.textMuted
+                font.pixelSize: TypeScale.caption
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+            }
+            TextField {
+                id: settingsPoll
+                Layout.fillWidth: true
+                inputMethodHints: Qt.ImhDigitsOnly
+                color: Theme.textPrimary
+                placeholderText: "1200"
+                placeholderTextColor: Theme.textMuted
+                font.pixelSize: TypeScale.base
+                background: Rectangle {
+                    radius: Theme.radiusSmall
+                    color: Theme.surface
+                    border.width: 1
+                    border.color: settingsPoll.activeFocus ? Theme.interactive : Theme.outline
+                }
+            }
+
+            Rectangle { Layout.fillWidth: true; height: 1; color: Theme.outline }
 
             Text {
                 text: qsTr("Delay between launches in a profile (ms)")

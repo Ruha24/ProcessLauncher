@@ -508,6 +508,18 @@ void ProcessManager::setLaunchDelayMs(int ms)
     emit profilesChanged();
 }
 
+int ProcessManager::pollInterval() const
+{
+    return m_pollTimer->interval();
+}
+
+void ProcessManager::setPollInterval(int ms)
+{
+    if (ms < 200) ms = 200;
+    if (ms > 10000) ms = 10000;
+    m_pollTimer->setInterval(ms);
+}
+
 QString ProcessManager::autoStartProfile() const
 {
     return m_autoStartProfile;
