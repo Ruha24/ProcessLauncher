@@ -51,6 +51,7 @@ QVariant ProcessListModel::data(const QModelIndex& index, int role) const
     case ArgsRole:    return e.args;
     case ProfileRole: return e.profile;
     case WatchRole:   return e.watch;
+    case NoteRole:    return e.note;
     }
     return QVariant();
 }
@@ -66,6 +67,7 @@ QHash<int, QByteArray> ProcessListModel::roleNames() const
         {ArgsRole,    QByteArrayLiteral("args")},
         {ProfileRole, QByteArrayLiteral("profile")},
         {WatchRole,   QByteArrayLiteral("watch")},
+        {NoteRole,    QByteArrayLiteral("note")},
     };
 }
 
@@ -133,6 +135,11 @@ void ProcessListModel::setArgs(const QString& id, const QString& args)
     m_manager->setArgs(id, args);
 }
 
+void ProcessListModel::setNote(const QString& id, const QString& note)
+{
+    m_manager->setNote(id, note);
+}
+
 void ProcessListModel::setProgramProfile(const QString& id, const QString& profile)
 {
     m_manager->setProgramProfile(id, profile);
@@ -176,6 +183,26 @@ QString ProcessListModel::profileBind(const QString& name) const
 void ProcessListModel::setProfileBind(const QString& name, const QString& bind)
 {
     m_manager->setProfileBind(name, bind);
+}
+
+QString ProcessListModel::profileColor(const QString& name) const
+{
+    return m_manager->profileColor(name);
+}
+
+void ProcessListModel::setProfileColor(const QString& name, const QString& color)
+{
+    m_manager->setProfileColor(name, color);
+}
+
+QString ProcessListModel::profileIcon(const QString& name) const
+{
+    return m_manager->profileIcon(name);
+}
+
+void ProcessListModel::setProfileIcon(const QString& name, const QString& icon)
+{
+    m_manager->setProfileIcon(name, icon);
 }
 
 void ProcessListModel::start(const QString& id)

@@ -147,6 +147,8 @@ void ProcessManager::removeProfile(const QString& name)
 
     m_hotkeys->clearHotkey(profileHotkeyId(name));
     m_profileBinds.remove(name);
+    m_profileColors.remove(name);
+    m_profileIcons.remove(name);
     m_profiles.removeAll(name);
 
     save();
@@ -171,6 +173,10 @@ void ProcessManager::renameProfile(const QString& oldName, const QString& newNam
         m_hotkeys->clearHotkey(profileHotkeyId(oldName));
         syncProfileHotkey(n);
     }
+    if (m_profileColors.contains(oldName))
+        m_profileColors.insert(n, m_profileColors.take(oldName));
+    if (m_profileIcons.contains(oldName))
+        m_profileIcons.insert(n, m_profileIcons.take(oldName));
 
     save();
     emit profilesChanged();
@@ -252,6 +258,40 @@ void ProcessManager::setProfileBind(const QString& name, const QString& bind)
         m_profileBinds.insert(name, normalized);
 
     syncProfileHotkey(name);
+    save();
+    emit profilesChanged();
+}
+
+QString ProcessManager::profileColor(const QString& name) const
+{
+    return m_profileColors.value(name);
+}
+
+void ProcessManager::setProfileColor(const QString& name, const QString& color)
+{
+    if (m_profileColors.value(name) == color)
+        return;
+    if (color.isEmpty())
+        m_profileColors.remove(name);
+    else
+        m_profileColors.insert(name, color);
+    save();
+    emit profilesChanged();
+}
+
+QString ProcessManager::profileIcon(const QString& name) const
+{
+    return m_profileIcons.value(name);
+}
+
+void ProcessManager::setProfileIcon(const QString& name, const QString& icon)
+{
+    if (m_profileIcons.value(name) == icon)
+        return;
+    if (icon.isEmpty())
+        m_profileIcons.remove(name);
+    else
+        m_profileIcons.insert(name, icon);
     save();
     emit profilesChanged();
 }
@@ -348,6 +388,17 @@ void ProcessManager::setArgs(const QString& id, const QString& args)
         return;
 
     it->args = args;
+    save();
+    emit listChanged();
+}
+
+void ProcessManager::setNote(const QString& id, const QString& note)
+{
+    auto it = m_entries.find(id);
+    if (it == m_entries.end() || it->note == note)
+        return;
+
+    it->note = note;
     save();
     emit listChanged();
 }
@@ -588,6 +639,7 @@ void ProcessManager::save() const
             {QStringLiteral("path"),    e.path},
             {QStringLiteral("bind"),    e.bind},
             {QStringLiteral("args"),    e.args},
+            {QStringLiteral("note"),    e.note},
             {QStringLiteral("profile"), e.profile},
             {QStringLiteral("watch"),   e.watch},
         });
@@ -601,10 +653,20 @@ void ProcessManager::save() const
     for (auto it = m_profileBinds.constBegin(); it != m_profileBinds.constEnd(); ++it)
         profileBindsObj.insert(it.key(), it.value());
 
+    QJsonObject profileColorsObj;
+    for (auto it = m_profileColors.constBegin(); it != m_profileColors.constEnd(); ++it)
+        profileColorsObj.insert(it.key(), it.value());
+
+    QJsonObject profileIconsObj;
+    for (auto it = m_profileIcons.constBegin(); it != m_profileIcons.constEnd(); ++it)
+        profileIconsObj.insert(it.key(), it.value());
+
     const QJsonObject root{
         {QStringLiteral("programs"),     programs},
         {QStringLiteral("profiles"),     profilesArr},
         {QStringLiteral("profileBinds"), profileBindsObj},
+        {QStringLiteral("profileColors"), profileColorsObj},
+        {QStringLiteral("profileIcons"), profileIconsObj},
         {QStringLiteral("launchDelayMs"), m_launchDelayMs},
         {QStringLiteral("autoStartProfile"), m_autoStartProfile},
     };
@@ -666,6 +728,14 @@ void ProcessManager::load()
 
         m_launchDelayMs = root.value(QStringLiteral("launchDelayMs")).toInt(0);
         m_autoStartProfile = root.value(QStringLiteral("autoStartProfile")).toString();
+
+        const QJsonObject colors = root.value(QStringLiteral("profileColors")).toObject();
+        for (auto it = colors.constBegin(); it != colors.constEnd(); ++it)
+            m_profileColors.insert(it.key(), it.value().toString());
+
+        const QJsonObject icons = root.value(QStringLiteral("profileIcons")).toObject();
+        for (auto it = icons.constBegin(); it != icons.constEnd(); ++it)
+            m_profileIcons.insert(it.key(), it.value().toString());
     }
 
     if (m_profiles.isEmpty())
@@ -687,6 +757,7 @@ void ProcessManager::load()
         e.name = QFileInfo(path).fileName();
         e.bind = obj.value(QStringLiteral("bind")).toString();
         e.args = obj.value(QStringLiteral("args")).toString();
+        e.note = obj.value(QStringLiteral("note")).toString();
         e.profile = obj.value(QStringLiteral("profile")).toString();
         e.watch = obj.value(QStringLiteral("watch")).toBool(false);
         if (e.profile.isEmpty() || !m_profiles.contains(e.profile))

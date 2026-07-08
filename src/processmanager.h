@@ -26,6 +26,7 @@ struct ProcessEntry
     QString args;
     QString profile;
     bool    watch = false;
+    QString note;
 };
 
 class ProcessManager : public QObject
@@ -40,6 +41,7 @@ public:
     void    removeProgram(const QString& id);
     void    setBind(const QString& id, const QString& bind);
     void    setArgs(const QString& id, const QString& args);
+    void    setNote(const QString& id, const QString& note);
     void    setProgramProfile(const QString& id, const QString& profile);
 
     void start(const QString& id);
@@ -63,6 +65,10 @@ public:
     void        stopProfile(const QString& name);
     QString     profileBind(const QString& name) const;
     void        setProfileBind(const QString& name, const QString& bind);
+    QString     profileColor(const QString& name) const;
+    void        setProfileColor(const QString& name, const QString& color);
+    QString     profileIcon(const QString& name) const;
+    void        setProfileIcon(const QString& name, const QString& icon);
 
     bool isRunning(const QString& id) const;
     int  uptimeSeconds(const QString& id) const;
@@ -102,6 +108,8 @@ private:
     QSet<QString>                   m_untracked;
     QStringList                     m_profiles;
     QHash<QString, QString>         m_profileBinds;
+    QHash<QString, QString>         m_profileColors;
+    QHash<QString, QString>         m_profileIcons;
     int                             m_launchDelayMs = 0;
     QString                         m_autoStartProfile;
     QStringList                     m_launchQueue;

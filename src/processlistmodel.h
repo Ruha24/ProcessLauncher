@@ -23,6 +23,7 @@ public:
         ArgsRole,
         ProfileRole,
         WatchRole,
+        NoteRole,
     };
     Q_ENUM(Role)
 
@@ -36,6 +37,7 @@ public:
     Q_INVOKABLE void removeProgram(const QString& id);
     Q_INVOKABLE void setBind(const QString& id, const QString& bind);
     Q_INVOKABLE void setArgs(const QString& id, const QString& args);
+    Q_INVOKABLE void setNote(const QString& id, const QString& note);
     Q_INVOKABLE void setProgramProfile(const QString& id, const QString& profile);
     Q_INVOKABLE void start(const QString& id);
     Q_INVOKABLE void stop(const QString& id);
@@ -64,6 +66,10 @@ public:
     Q_INVOKABLE void stopProfile(const QString& name);
     Q_INVOKABLE QString profileBind(const QString& name) const;
     Q_INVOKABLE void setProfileBind(const QString& name, const QString& bind);
+    Q_INVOKABLE QString profileColor(const QString& name) const;
+    Q_INVOKABLE void setProfileColor(const QString& name, const QString& color);
+    Q_INVOKABLE QString profileIcon(const QString& name) const;
+    Q_INVOKABLE void setProfileIcon(const QString& name, const QString& icon);
 
     Q_INVOKABLE int uptimeSeconds(const QString& id) const;
     Q_INVOKABLE int profileRunningCount(const QString& name) const;

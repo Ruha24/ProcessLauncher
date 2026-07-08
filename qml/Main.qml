@@ -43,9 +43,16 @@ ApplicationWindow {
         profileTotal = processModel.profileTotalCount(activeProfile)
     }
 
+    function safeColor(c, fallback) {
+        return (c && c.length > 0) ? c : fallback
+    }
+
+    property int styleVersion: 0
+
     Connections {
         target: processModel
         function onTick() { window.refreshCounts() }
+        function onProfilesChanged() { window.styleVersion++ }
     }
 
     function refreshProfiles() {
@@ -302,22 +309,38 @@ ApplicationWindow {
 
                             Rectangle {
                                 required property string modelData
+                                property string pColor: (window.styleVersion, processModel.profileColor(modelData))
+                                property string pIcon: (window.styleVersion, processModel.profileIcon(modelData))
+                                property bool isActive: modelData === window.activeProfile
                                 height: 34
-                                width: tabLabel.width + 2 * Theme.spacing
+                                width: tabRow.width + 2 * Theme.spacing
                                 radius: Theme.radiusSmall
-                                color: modelData === window.activeProfile
-                                       ? Theme.interactive : Theme.surfaceElevated
+                                color: isActive
+                                       ? window.safeColor(pColor, Theme.interactive)
+                                       : Theme.surfaceElevated
                                 border.width: 1
-                                border.color: modelData === window.activeProfile
-                                              ? Theme.interactive : Theme.outline
+                                border.color: isActive
+                                              ? window.safeColor(pColor, Theme.interactive)
+                                              : window.safeColor(pColor, Theme.outline)
 
-                                Text {
-                                    id: tabLabel
+                                Row {
+                                    id: tabRow
                                     anchors.centerIn: parent
-                                    text: parent.modelData
-                                    color: parent.modelData === window.activeProfile
-                                           ? Theme.textOnAccent : Theme.textPrimary
-                                    font.pixelSize: TypeScale.base
+                                    spacing: 5
+                                    Text {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        visible: parent.parent.pIcon.length > 0
+                                        text: parent.parent.pIcon
+                                        font.pixelSize: TypeScale.base
+                                    }
+                                    Text {
+                                        id: tabLabel
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: parent.parent.modelData
+                                        color: parent.parent.isActive
+                                               ? Theme.textOnAccent : Theme.textPrimary
+                                        font.pixelSize: TypeScale.base
+                                    }
                                 }
 
                                 MouseArea {
@@ -364,6 +387,17 @@ ApplicationWindow {
                 }
                 Item { Layout.fillWidth: true }
                 AppButton {
+                    text: qsTr("Style")
+                    variant: "secondary"
+                    Layout.preferredWidth: 66
+                    onClicked: {
+                        styleDialog.targetProfile = window.activeProfile
+                        styleDialog.selectedColor = processModel.profileColor(window.activeProfile)
+                        styleDialog.selectedIcon = processModel.profileIcon(window.activeProfile)
+                        styleDialog.open()
+                    }
+                }
+                AppButton {
                     text: qsTr("Hotkey")
                     variant: "secondary"
                     Layout.preferredWidth: 74
@@ -405,6 +439,11 @@ ApplicationWindow {
             }
             onRestartRequested: (id) => { processModel.restart(id); window.refreshCounts() }
             onToggleWatchRequested: (id, on) => processModel.setWatch(id, on)
+            onEditNoteRequested: (id, currentNote) => {
+                noteDialog.targetId = id
+                noteField.text = currentNote
+                noteDialog.open()
+            }
             onOpenFolderRequested: (path) => processModel.openFileLocation(path)
             onCopyPathRequested: (path) => processModel.copyPath(path)
             onEditBindRequested: (id, currentBind) => {
@@ -720,6 +759,58 @@ ApplicationWindow {
     }
 
     Dialog {
+        id: noteDialog
+        property string targetId: ""
+
+        title: qsTr("Note")
+        anchors.centerIn: parent
+        width: 380
+        modal: true
+        standardButtons: Dialog.Ok | Dialog.Cancel
+
+        onOpened: noteField.forceActiveFocus()
+        onAccepted: processModel.setNote(targetId, noteField.text)
+
+        background: Rectangle {
+            color: Theme.surfaceElevated
+            radius: Theme.radius
+            border.width: 1
+            border.color: Theme.outline
+        }
+
+        contentItem: ColumnLayout {
+            spacing: Theme.spacingS
+            Text {
+                text: qsTr("A short note for this program.")
+                color: Theme.textMuted
+                font.pixelSize: TypeScale.caption
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+            }
+            TextField {
+                id: noteField
+                Layout.fillWidth: true
+                placeholderText: qsTr("e.g. start after VPN")
+                color: Theme.textPrimary
+                placeholderTextColor: Theme.textMuted
+                font.pixelSize: TypeScale.base
+                selectByMouse: true
+                onAccepted: noteDialog.accept()
+                background: Rectangle {
+                    radius: Theme.radiusSmall
+                    color: Theme.surface
+                    border.width: 1
+                    border.color: noteField.activeFocus ? Theme.interactive
+                                                        : Theme.outline
+                    Behavior on border.color {
+                        ColorAnimation { duration: Theme.animFast }
+                    }
+                }
+            }
+        }
+    }
+
+    Dialog {
         id: newProfileDialog
         title: qsTr("New profile")
         anchors.centerIn: parent
@@ -871,6 +962,110 @@ ApplicationWindow {
                     color: profileBindDialog.captured.length > 0
                            ? Theme.textPrimary : Theme.textMuted
                     font.pixelSize: TypeScale.h2
+                }
+            }
+        }
+    }
+
+    Dialog {
+        id: styleDialog
+        property string targetProfile: ""
+        property string selectedColor: ""
+        property string selectedIcon: ""
+
+        readonly property var palette: ["#5b8cff","#3ddc84","#ff6b6b","#ffb454",
+                                        "#c77dff","#4ecdc4","#f78fb3","#8b909b"]
+        readonly property var emojis: ["🎮","💼","🎧","🛠️","🌐","🎬","📊","🚀",
+                                       "🔥","⭐","🎯","📁"]
+
+        title: qsTr("Profile style")
+        anchors.centerIn: parent
+        width: 360
+        modal: true
+        standardButtons: Dialog.Ok | Dialog.Cancel
+
+        onAccepted: {
+            processModel.setProfileColor(targetProfile, selectedColor)
+            processModel.setProfileIcon(targetProfile, selectedIcon)
+        }
+
+        background: Rectangle {
+            color: Theme.surfaceElevated
+            radius: Theme.radius
+            border.width: 1
+            border.color: Theme.outline
+        }
+
+        contentItem: ColumnLayout {
+            spacing: Theme.spacing
+
+            Text {
+                text: qsTr("Color")
+                color: Theme.textPrimary
+                font.pixelSize: TypeScale.base
+                Layout.fillWidth: true
+            }
+            Flow {
+                Layout.fillWidth: true
+                spacing: Theme.spacingS
+                Repeater {
+                    model: styleDialog.palette
+                    Rectangle {
+                        required property string modelData
+                        width: 32; height: 32; radius: 16
+                        color: modelData
+                        border.width: styleDialog.selectedColor === modelData ? 3 : 1
+                        border.color: styleDialog.selectedColor === modelData
+                                      ? Theme.textPrimary : Theme.outline
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: styleDialog.selectedColor = parent.modelData
+                        }
+                    }
+                }
+            }
+
+            Text {
+                text: qsTr("Icon")
+                color: Theme.textPrimary
+                font.pixelSize: TypeScale.base
+                Layout.fillWidth: true
+            }
+            Flow {
+                Layout.fillWidth: true
+                spacing: Theme.spacingS
+                Repeater {
+                    model: styleDialog.emojis
+                    Rectangle {
+                        required property string modelData
+                        width: 36; height: 36; radius: Theme.radiusSmall
+                        color: styleDialog.selectedIcon === modelData
+                               ? Theme.interactive : Theme.surface
+                        border.width: 1
+                        border.color: styleDialog.selectedIcon === modelData
+                                      ? Theme.interactive : Theme.outline
+                        Text {
+                            anchors.centerIn: parent
+                            text: parent.modelData
+                            font.pixelSize: 18
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: styleDialog.selectedIcon =
+                                       (styleDialog.selectedIcon === parent.modelData
+                                        ? "" : parent.modelData)
+                        }
+                    }
+                }
+            }
+
+            AppButton {
+                text: qsTr("Clear style")
+                variant: "secondary"
+                Layout.fillWidth: true
+                onClicked: {
+                    styleDialog.selectedColor = ""
+                    styleDialog.selectedIcon = ""
                 }
             }
         }

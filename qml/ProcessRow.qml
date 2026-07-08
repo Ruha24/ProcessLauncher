@@ -14,11 +14,13 @@ Item {
     required property string args
     required property string profile
     required property bool    watch
+    required property string note
 
     signal startRequested(string id)
     signal stopRequested(string id)
     signal restartRequested(string id)
     signal toggleWatchRequested(string id, bool on)
+    signal editNoteRequested(string id, string currentNote)
     signal editBindRequested(string id, string currentBind)
     signal editArgsRequested(string id, string currentArgs)
     signal moveRequested(string id, string currentProfile)
@@ -98,6 +100,10 @@ Item {
                 onTriggered: row.toggleWatchRequested(row.procId, !row.watch)
             }
             MenuItem {
+                text: row.note.length > 0 ? qsTr("Edit note…") : qsTr("Add note…")
+                onTriggered: row.editNoteRequested(row.procId, row.note)
+            }
+            MenuItem {
                 text: qsTr("Open file location")
                 onTriggered: row.openFolderRequested(row.path)
             }
@@ -145,7 +151,7 @@ Item {
                 }
                 Text {
                     Layout.fillWidth: true
-                    visible: row.bind.length > 0 || row.running || row.args.length > 0 || row.watch
+                    visible: row.bind.length > 0 || row.running || row.args.length > 0 || row.watch || row.note.length > 0
                     text: {
                         var left = row.running
                             ? (row.bind.length > 0 ? qsTr("Running · %1").arg(row.bind)
@@ -157,6 +163,8 @@ Item {
                             left = left.length > 0 ? left + "  ·  " + row.args : row.args
                         if (row.watch)
                             left = left.length > 0 ? left + "  ·  ⭮ auto" : "⭮ auto"
+                        if (row.note.length > 0)
+                            left = left.length > 0 ? left + "  ·  " + row.note : row.note
                         return left
                     }
                     color: row.running ? Theme.running : Theme.textMuted
