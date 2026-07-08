@@ -16,6 +16,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # ПРИМЕЧАНИЕ: если этот шаг упадёт с "Failed to locate" по tools —
+      # значит имя MinGW-инструмента другое. Посмотреть доступные можно
+      # локально: aqt list-tool windows desktop tools_mingw90 (и т.п.),
+      # либо убрать 'tools_mingw1310 tools_ninja' и раскомментировать
+      # блок 'Install build tools via choco' ниже.
       - name: Install Qt + MinGW
         uses: jurplel/install-qt-action@v4
         with:
@@ -25,6 +30,12 @@ jobs:
           arch: win64_mingw
           modules: 'qtimageformats'
           tools: 'tools_mingw1310 tools_ninja'
+          extra: '--base https://download.qt.io/'
+
+      # Запасной вариант, если tools выше не встали (раскомментируй):
+      # - name: Install build tools via choco
+      #   run: |
+      #     choco install mingw ninja --no-progress -y
 
       - name: Add MinGW to PATH
         shell: pwsh
@@ -70,11 +81,12 @@ jobs:
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
-          version: '6.11.1'
+          version: '6.11.*'
           host: mac
           target: desktop
           arch: clang_64
           modules: 'qtimageformats'
+          extra: '--base https://download.qt.io/'
 
       - name: Configure & build
         run: |
