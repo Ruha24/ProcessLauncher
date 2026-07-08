@@ -1,0 +1,95 @@
+name: Build installers
+
+# Запуск: при пуше в main, вручную (кнопкой в Actions), и на теги vX.Y.Z
+on:
+  push:
+    branches: [ main, master ]
+    tags: [ 'v*' ]
+  workflow_dispatch:
+
+jobs:
+  # ============================================================
+  #  WINDOWS: exe + Inno Setup установщик
+  # ============================================================
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt + MinGW
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.11.1'
+          host: windows
+          target: desktop
+          arch: win64_mingw
+          modules: 'qtimageformats'
+          tools: 'tools_mingw1310 tools_ninja'
+
+      - name: Add MinGW to PATH
+        shell: pwsh
+        run: |
+          $mingw = Get-ChildItem -Path "$env:RUNNER_WORKSPACE\Qt\Tools" -Filter "mingw*" -Directory | Select-Object -First 1
+          echo "$($mingw.FullName)\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
+
+      - name: Configure & build
+        shell: cmd
+        run: |
+          cmake -B build -G "Ninja" -DCMAKE_BUILD_TYPE=Release .
+          cmake --build build
+
+      - name: Deploy Qt libraries
+        shell: cmd
+        run: |
+          mkdir packaging\windows\dist
+          copy build\appProcessLauncher.exe packaging\windows\dist\ProcessLauncher.exe
+          windeployqt --qmldir qml --release --no-translations packaging\windows\dist\ProcessLauncher.exe
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Build installer (Inno Setup)
+        shell: cmd
+        run: |
+          iscc /O"installer_out" packaging\windows\installer.iss
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: ProcessLauncher-Windows-Setup
+          path: installer_out\*.exe
+
+  # ============================================================
+  #  MACOS: .app + .dmg
+  # ============================================================
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.11.1'
+          host: mac
+          target: desktop
+          arch: clang_64
+          modules: 'qtimageformats'
+
+      - name: Configure & build
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release .
+          cmake --build build
+
+      - name: Package .dmg
+        run: |
+          mkdir -p dist
+          cp -R build/appProcessLauncher.app dist/ProcessLauncher.app
+          macdeployqt dist/ProcessLauncher.app -qmldir=qml -dmg
+          mv dist/ProcessLauncher.dmg ProcessLauncher.dmg
+
+      - name: Upload dmg
+        uses: actions/upload-artifact@v4
+        with:
+          name: ProcessLauncher-macOS-dmg
+          path: ProcessLauncher.dmg

@@ -70,12 +70,56 @@ void JobController::closeHandle()
 
 #else
 
-JobController::JobController() = default;
-JobController::~JobController() = default;
+#include <csignal>
+#include <cerrno>
+#include <sys/types.h>
+#include <unistd.h>
 
-bool JobController::assign(qint64) { return false; }
-bool JobController::isAlive() const { return false; }
-void JobController::terminate() {}
-void JobController::closeHandle() {}
+JobController::JobController() = default;
+
+JobController::~JobController()
+{
+    closeHandle();
+}
+
+bool JobController::assign(qint64 pid)
+{
+    if (pid <= 0)
+        return false;
+    m_pid = pid;
+    return true;
+}
+
+bool JobController::isAlive() const
+{
+    if (m_pid <= 0)
+        return false;
+
+    const pid_t pgid = static_cast<pid_t>(m_pid);
+    if (killpg(pgid, 0) == 0)
+        return true;
+    if (errno == EPERM)
+        return true;
+    if (kill(static_cast<pid_t>(m_pid), 0) == 0)
+        return true;
+    return false;
+}
+
+void JobController::terminate()
+{
+    if (m_pid <= 0)
+        return;
+
+    const pid_t pgid = static_cast<pid_t>(m_pid);
+    if (killpg(pgid, SIGTERM) != 0)
+        kill(static_cast<pid_t>(m_pid), SIGTERM);
+
+    closeHandle();
+}
+
+void JobController::closeHandle()
+{
+    m_pid = 0;
+}
 
 #endif

@@ -22,7 +22,7 @@ AutostartManager::AutostartManager(QObject* parent)
 
 bool AutostartManager::isAvailable() const
 {
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN) || defined(Q_OS_MACOS)
     return true;
 #else
     return false;
@@ -41,6 +41,9 @@ QString AutostartManager::shortcutPath() const
     const QString dir = QString::fromWCharArray(raw);
     CoTaskMemFree(raw);
     return QDir(dir).absoluteFilePath(kLinkName);
+#elif defined(Q_OS_MACOS)
+    const QString home = QDir::homePath();
+    return home + QStringLiteral("/Library/LaunchAgents/com.processlauncher.autostart.plist");
 #else
     return QString();
 #endif
@@ -91,6 +94,38 @@ bool AutostartManager::createShortcut() const
     if (needUninit)
         CoUninitialize();
     return ok;
+#elif defined(Q_OS_MACOS)
+    const QString plistPath = shortcutPath();
+    if (plistPath.isEmpty())
+        return false;
+
+    QDir().mkpath(QFileInfo(plistPath).absolutePath());
+
+    const QString exePath = QCoreApplication::applicationFilePath();
+    const QString plist =
+        QStringLiteral(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+            "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" "
+            "\"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"
+            "<plist version=\"1.0\">\n"
+            "<dict>\n"
+            "    <key>Label</key>\n"
+            "    <string>com.processlauncher.autostart</string>\n"
+            "    <key>ProgramArguments</key>\n"
+            "    <array>\n"
+            "        <string>%1</string>\n"
+            "    </array>\n"
+            "    <key>RunAtLoad</key>\n"
+            "    <true/>\n"
+            "</dict>\n"
+            "</plist>\n").arg(exePath);
+
+    QFile f(plistPath);
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Text))
+        return false;
+    f.write(plist.toUtf8());
+    f.close();
+    return true;
 #else
     return false;
 #endif

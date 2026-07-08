@@ -21,7 +21,11 @@ public:
 private:
     void closeHandle();
 
+#ifdef Q_OS_WIN
     void* m_job = nullptr;
+#else
+    qint64 m_pid = 0;
+#endif
 };
 
 #endif

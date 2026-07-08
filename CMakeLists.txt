@@ -71,6 +71,15 @@ if(WIN32)
     target_link_libraries(appProcessLauncher PRIVATE shell32 ole32 uuid)
 endif()
 
+if(APPLE)
+    set_target_properties(appProcessLauncher PROPERTIES
+        MACOSX_BUNDLE TRUE
+        MACOSX_BUNDLE_BUNDLE_NAME "Process Launcher"
+        MACOSX_BUNDLE_GUI_IDENTIFIER "com.processlauncher.app"
+        MACOSX_BUNDLE_BUNDLE_VERSION "1.0"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0")
+endif()
+
 install(TARGETS appProcessLauncher
     BUNDLE  DESTINATION .
     RUNTIME DESTINATION bin
