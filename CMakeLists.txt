@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Quick Gui Qml Widgets)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Quick Gui Qml Widgets Network)
 
 qt_standard_project_setup(REQUIRES 6.5)
 
@@ -38,6 +38,8 @@ qt_add_executable(appProcessLauncher
     src/windowstate.h
     src/eventlog.cpp
     src/eventlog.h
+    src/updatechecker.cpp
+    src/updatechecker.h
 )
 
 qt_add_qml_module(appProcessLauncher
@@ -61,6 +63,7 @@ target_link_libraries(appProcessLauncher
         Qt6::Gui
         Qt6::Qml
         Qt6::Widgets
+        Qt6::Network
         themeplugin
 )
 

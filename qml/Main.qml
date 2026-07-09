@@ -32,6 +32,16 @@ ApplicationWindow {
         if (poll > 0) processModel.setPollInterval(poll)
         refreshProfiles()
         refreshCounts()
+        updateChecker.checkForUpdates()
+    }
+
+    Connections {
+        target: updateChecker
+        function onUpdateAvailable(version, url) {
+            updateDialog.newVersion = version
+            updateDialog.releaseUrl = url
+            updateDialog.open()
+        }
     }
 
     onXChanged: windowState.save(window.x, window.y, window.width, window.height)
@@ -1578,6 +1588,64 @@ ApplicationWindow {
                     text: qsTr("No startup programs found.")
                     color: Theme.textMuted
                     font.pixelSize: TypeScale.base
+                }
+            }
+        }
+    }
+
+    Dialog {
+        id: updateDialog
+        property string newVersion: ""
+        property string releaseUrl: ""
+
+        title: qsTr("Update available")
+        anchors.centerIn: parent
+        width: 380
+        modal: true
+        standardButtons: Dialog.NoButton
+
+        background: Rectangle {
+            color: Theme.surfaceElevated
+            radius: Theme.radius
+            border.width: 1
+            border.color: Theme.outline
+        }
+
+        contentItem: ColumnLayout {
+            spacing: Theme.spacing
+
+            Text {
+                Layout.fillWidth: true
+                text: qsTr("Version %1 is available.\nYou have %2.")
+                      .arg(updateDialog.newVersion)
+                      .arg(updateChecker.currentVersion)
+                color: Theme.textPrimary
+                font.pixelSize: TypeScale.base
+                wrapMode: Text.WordWrap
+            }
+            Text {
+                Layout.fillWidth: true
+                text: qsTr("Open the download page in your browser?")
+                color: Theme.textMuted
+                font.pixelSize: TypeScale.caption
+                wrapMode: Text.WordWrap
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: Theme.spacingS
+                Item { Layout.fillWidth: true }
+                AppButton {
+                    text: qsTr("Later")
+                    variant: "secondary"
+                    onClicked: updateDialog.close()
+                }
+                AppButton {
+                    text: qsTr("Download")
+                    variant: "primary"
+                    onClicked: {
+                        Qt.openUrlExternally(updateDialog.releaseUrl)
+                        updateDialog.close()
+                    }
                 }
             }
         }
