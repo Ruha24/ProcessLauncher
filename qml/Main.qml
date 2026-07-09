@@ -276,6 +276,11 @@ ApplicationWindow {
                     onClicked: logDialog.open()
                 }
                 AppButton {
+                    text: qsTr("Schedule")
+                    variant: "secondary"
+                    onClicked: scheduleDialog.open()
+                }
+                AppButton {
                     text: qsTr("Startup")
                     variant: "secondary"
                     visible: startupModel.available()
@@ -1586,6 +1591,222 @@ ApplicationWindow {
                     anchors.centerIn: parent
                     visible: parent.count === 0
                     text: qsTr("No startup programs found.")
+                    color: Theme.textMuted
+                    font.pixelSize: TypeScale.base
+                }
+            }
+        }
+    }
+
+    Dialog {
+        id: scheduleDialog
+        property int selHour: 9
+        property int selMinute: 0
+        property bool selDaily: true
+        property string selType: "profile"
+        property string selProgramId: ""
+        property string selProgramLabel: ""
+
+        title: qsTr("Schedule")
+        anchors.centerIn: parent
+        width: Math.min(window.width - 2 * Theme.spacingL, 560)
+        height: Math.min(window.height - 2 * Theme.spacingL, 620)
+        modal: true
+        standardButtons: Dialog.Close
+
+        background: Rectangle {
+            color: Theme.surfaceElevated
+            radius: Theme.radius
+            border.width: 1
+            border.color: Theme.outline
+        }
+
+        contentItem: ColumnLayout {
+            spacing: Theme.spacing
+
+            Text {
+                text: qsTr("Auto-start a profile or program at a set time.")
+                color: Theme.textMuted
+                font.pixelSize: TypeScale.caption
+                Layout.fillWidth: true
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                radius: Theme.radiusSmall
+                color: Theme.surface
+                border.width: 1
+                border.color: Theme.outline
+                implicitHeight: addCol.implicitHeight + 2 * Theme.spacing
+
+                ColumnLayout {
+                    id: addCol
+                    anchors.fill: parent
+                    anchors.margins: Theme.spacing
+                    spacing: Theme.spacingS
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: Theme.spacingS
+                        AppButton {
+                            text: qsTr("Profile")
+                            variant: scheduleDialog.selType === "profile" ? "primary" : "secondary"
+                            onClicked: scheduleDialog.selType = "profile"
+                        }
+                        AppButton {
+                            text: qsTr("Program")
+                            variant: scheduleDialog.selType === "program" ? "primary" : "secondary"
+                            onClicked: scheduleDialog.selType = "program"
+                        }
+                        Item { Layout.fillWidth: true }
+                    }
+
+                    Flow {
+                        Layout.fillWidth: true
+                        spacing: Theme.spacingS
+                        visible: scheduleDialog.selType === "profile"
+                        Repeater {
+                            model: window.profileList
+                            AppButton {
+                                required property string modelData
+                                text: modelData
+                                variant: scheduleDialog.selProgramId === modelData ? "primary" : "secondary"
+                                onClicked: {
+                                    scheduleDialog.selProgramId = modelData
+                                    scheduleDialog.selProgramLabel = modelData
+                                }
+                            }
+                        }
+                    }
+
+                    ComboBox {
+                        Layout.fillWidth: true
+                        visible: scheduleDialog.selType === "program"
+                        model: processModel
+                        textRole: "name"
+                        valueRole: "procId"
+                        onActivated: {
+                            scheduleDialog.selProgramId = currentValue
+                            scheduleDialog.selProgramLabel = currentText
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: Theme.spacingS
+                        Text {
+                            text: qsTr("Time")
+                            color: Theme.textPrimary
+                            font.pixelSize: TypeScale.base
+                        }
+                        SpinBox {
+                            from: 0; to: 23
+                            value: scheduleDialog.selHour
+                            onValueModified: scheduleDialog.selHour = value
+                        }
+                        Text { text: ":"; color: Theme.textPrimary; font.pixelSize: TypeScale.h2 }
+                        SpinBox {
+                            from: 0; to: 59
+                            value: scheduleDialog.selMinute
+                            onValueModified: scheduleDialog.selMinute = value
+                        }
+                        Item { Layout.fillWidth: true }
+                        AppButton {
+                            text: scheduleDialog.selDaily ? qsTr("Daily") : qsTr("Once")
+                            variant: "secondary"
+                            onClicked: scheduleDialog.selDaily = !scheduleDialog.selDaily
+                        }
+                    }
+
+                    AppButton {
+                        text: qsTr("Add rule")
+                        variant: "primary"
+                        Layout.fillWidth: true
+                        enabled: scheduleDialog.selProgramId.length > 0
+                        onClicked: {
+                            scheduleModel.addRule(
+                                scheduleDialog.selType,
+                                scheduleDialog.selProgramId,
+                                scheduleDialog.selProgramLabel,
+                                scheduleDialog.selHour,
+                                scheduleDialog.selMinute,
+                                scheduleDialog.selDaily)
+                            scheduleDialog.selProgramId = ""
+                            scheduleDialog.selProgramLabel = ""
+                        }
+                    }
+                }
+            }
+
+            ListView {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                clip: true
+                model: scheduleModel
+                spacing: Theme.spacingS / 2
+
+                delegate: Rectangle {
+                    required property int index
+                    required property string targetType
+                    required property string targetLabel
+                    required property string timeText
+                    required property bool daily
+                    required property bool isEnabled
+
+                    width: ListView.view ? ListView.view.width : 0
+                    height: 54
+                    radius: Theme.radiusSmall
+                    color: Theme.surface
+                    border.width: 1
+                    border.color: Theme.outline
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: Theme.spacing
+                        anchors.rightMargin: Theme.spacing
+                        spacing: Theme.spacing
+
+                        Text {
+                            text: timeText
+                            color: isEnabled ? Theme.interactive : Theme.textMuted
+                            font.pixelSize: TypeScale.h2
+                        }
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 2
+                            Text {
+                                Layout.fillWidth: true
+                                text: targetLabel
+                                color: isEnabled ? Theme.textPrimary : Theme.textMuted
+                                font.pixelSize: TypeScale.base
+                                elide: Text.ElideRight
+                            }
+                            Text {
+                                text: (targetType === "profile" ? qsTr("Profile") : qsTr("Program"))
+                                      + "  ·  " + (daily ? qsTr("every day") : qsTr("once"))
+                                color: Theme.textMuted
+                                font.pixelSize: TypeScale.caption
+                            }
+                        }
+                        AppButton {
+                            text: isEnabled ? qsTr("On") : qsTr("Off")
+                            variant: isEnabled ? "primary" : "secondary"
+                            Layout.preferredWidth: 60
+                            onClicked: scheduleModel.setEnabled(index, !isEnabled)
+                        }
+                        AppButton {
+                            text: "✕"
+                            variant: "secondary"
+                            Layout.preferredWidth: 40
+                            onClicked: scheduleModel.removeRule(index)
+                        }
+                    }
+                }
+
+                Text {
+                    anchors.centerIn: parent
+                    visible: parent.count === 0
+                    text: qsTr("No schedule rules yet.")
                     color: Theme.textMuted
                     font.pixelSize: TypeScale.base
                 }

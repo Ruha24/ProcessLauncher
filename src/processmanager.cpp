@@ -315,7 +315,6 @@ QString ProcessManager::addProgram(const QString& path, const QString& bind)
 {
     QString realPath = path;
 
-    // Если перетащили/выбрали ярлык — тихо подменяем на настоящий путь к .exe.
     if (ShortcutResolver::isShortcut(path)) {
         bool ok = false;
         const QString resolved = ShortcutResolver::resolve(path, &ok);

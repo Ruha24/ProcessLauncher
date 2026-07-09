@@ -15,6 +15,7 @@
 #include "windowstate.h"
 #include "eventlog.h"
 #include "updatechecker.h"
+#include "schedulemodel.h"
 
 Q_IMPORT_QML_PLUGIN(ThemePlugin)
 
@@ -41,6 +42,7 @@ int main(int argc, char* argv[])
     WindowState windowState;
     EventLogModel eventLog;
     UpdateChecker updateChecker;
+    ScheduleModel scheduleModel(&manager);
 
     QObject::connect(&manager, &ProcessManager::processExited,
                      &eventLog, &EventLogModel::logCrash);
@@ -59,6 +61,7 @@ int main(int argc, char* argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("windowState"), &windowState);
     engine.rootContext()->setContextProperty(QStringLiteral("eventLog"), &eventLog);
     engine.rootContext()->setContextProperty(QStringLiteral("updateChecker"), &updateChecker);
+    engine.rootContext()->setContextProperty(QStringLiteral("scheduleModel"), &scheduleModel);
 
     QObject::connect(
         &engine, &QQmlApplicationEngine::objectCreationFailed,

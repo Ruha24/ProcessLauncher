@@ -15,7 +15,7 @@
 #include <QFileInfo>
 
 namespace {
-const QString kCurrentVersion = QStringLiteral("1.1");
+const QString kCurrentVersion = QStringLiteral("1.2");
 const QString kApiUrl =
     QStringLiteral("https://api.github.com/repos/Ruha24/ProcessLauncher/releases/latest");
 }
@@ -102,6 +102,7 @@ void UpdateChecker::checkForUpdates()
             return;
         }
 
+        // Ищем ассет под текущую ОС (по расширению файла).
         m_assetUrl.clear();
         m_assetName.clear();
         const QString suffix = platformSuffix();

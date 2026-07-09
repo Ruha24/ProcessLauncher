@@ -35,6 +35,7 @@ private:
     static int compareVersions(const QString& a, const QString& b);
     static QString normalize(const QString& v);
     static QString platformSuffix();
+
     QNetworkAccessManager* m_net = nullptr;
     QString m_assetUrl;
     QString m_assetName;
