@@ -1597,12 +1597,36 @@ ApplicationWindow {
         id: updateDialog
         property string newVersion: ""
         property string releaseUrl: ""
+        property string phase: "idle"
+        property real progress: 0
+        property string errorText: ""
 
         title: qsTr("Update available")
         anchors.centerIn: parent
-        width: 380
+        width: 400
         modal: true
         standardButtons: Dialog.NoButton
+        closePolicy: Popup.CloseOnEscape
+
+        onOpened: {
+            phase = "idle"
+            progress = 0
+            errorText = ""
+        }
+
+        Connections {
+            target: updateChecker
+            function onDownloadProgress(f) {
+                updateDialog.progress = f
+            }
+            function onDownloadFinished(path) {
+                updateDialog.phase = "done"
+            }
+            function onDownloadFailed(reason) {
+                updateDialog.phase = "idle"
+                updateDialog.errorText = reason
+            }
+        }
 
         background: Rectangle {
             color: Theme.surfaceElevated
@@ -1623,27 +1647,88 @@ ApplicationWindow {
                 font.pixelSize: TypeScale.base
                 wrapMode: Text.WordWrap
             }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: Theme.spacingS / 2
+                visible: updateDialog.phase === "downloading"
+                Text {
+                    text: qsTr("Downloading… %1%").arg(Math.round(updateDialog.progress * 100))
+                    color: Theme.textMuted
+                    font.pixelSize: TypeScale.caption
+                }
+                Rectangle {
+                    Layout.fillWidth: true
+                    height: 6
+                    radius: 3
+                    color: Theme.surfaceHover
+                    Rectangle {
+                        height: parent.height
+                        radius: 3
+                        width: parent.width * updateDialog.progress
+                        color: Theme.interactive
+                    }
+                }
+            }
+
             Text {
                 Layout.fillWidth: true
-                text: qsTr("Open the download page in your browser?")
-                color: Theme.textMuted
+                visible: updateDialog.phase === "done"
+                text: qsTr("Download complete. Click Install to run the installer.")
+                color: Theme.running
                 font.pixelSize: TypeScale.caption
                 wrapMode: Text.WordWrap
             }
+
+            Text {
+                Layout.fillWidth: true
+                visible: updateDialog.errorText.length > 0
+                text: updateDialog.errorText
+                color: Theme.danger
+                font.pixelSize: TypeScale.caption
+                wrapMode: Text.WordWrap
+            }
+
             RowLayout {
                 Layout.fillWidth: true
                 spacing: Theme.spacingS
                 Item { Layout.fillWidth: true }
+
                 AppButton {
                     text: qsTr("Later")
                     variant: "secondary"
+                    visible: updateDialog.phase !== "downloading"
                     onClicked: updateDialog.close()
                 }
+
+                AppButton {
+                    text: qsTr("Open page")
+                    variant: "secondary"
+                    visible: updateDialog.phase === "idle" && !updateChecker.canDownload
+                    onClicked: {
+                        Qt.openUrlExternally(updateDialog.releaseUrl)
+                        updateDialog.close()
+                    }
+                }
+
                 AppButton {
                     text: qsTr("Download")
                     variant: "primary"
+                    visible: updateDialog.phase === "idle" && updateChecker.canDownload
                     onClicked: {
-                        Qt.openUrlExternally(updateDialog.releaseUrl)
+                        updateDialog.errorText = ""
+                        updateDialog.progress = 0
+                        updateDialog.phase = "downloading"
+                        updateChecker.downloadUpdate()
+                    }
+                }
+
+                AppButton {
+                    text: qsTr("Install")
+                    variant: "primary"
+                    visible: updateDialog.phase === "done"
+                    onClicked: {
+                        updateChecker.runInstaller()
                         updateDialog.close()
                     }
                 }
