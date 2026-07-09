@@ -81,9 +81,25 @@ jobs:
           modules: 'qtimageformats'
           cache: true
 
+      - name: Create stub AGL framework (fix deprecated AGL link)
+        run: |
+          STUB="$RUNNER_TEMP/StubFrameworks"
+          mkdir -p "$STUB/AGL.framework/Versions/A"
+          echo '' > "$RUNNER_TEMP/agl_stub.c"
+          clang -dynamiclib -o "$STUB/AGL.framework/Versions/A/AGL" \
+            -install_name "@rpath/AGL.framework/Versions/A/AGL" \
+            "$RUNNER_TEMP/agl_stub.c"
+          ln -sf A "$STUB/AGL.framework/Versions/Current"
+          ln -sf Versions/Current/AGL "$STUB/AGL.framework/AGL"
+          echo "AGL_STUB_PATH=$STUB" >> "$GITHUB_ENV"
+
       - name: Configure & build
         run: |
-          cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 .
+          cmake -B build -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+            -DCMAKE_EXE_LINKER_FLAGS="-F$AGL_STUB_PATH" \
+            -DCMAKE_SHARED_LINKER_FLAGS="-F$AGL_STUB_PATH" \
+            .
           cmake --build build
 
       - name: Package .dmg
