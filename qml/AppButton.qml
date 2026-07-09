@@ -11,7 +11,7 @@ Button {
                          : Theme.surfaceElevated
 
     implicitHeight: 38
-    implicitWidth: Math.max(96, contentItem.implicitWidth + 2 * Theme.spacing)
+    implicitWidth: Math.max(96, implicitContentWidth + 2 * Theme.spacing)
     padding: 0
     font.pixelSize: TypeScale.base
 
@@ -26,7 +26,6 @@ Button {
         opacity: control.enabled ? 1.0 : 0.4
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
-        elide: Text.ElideRight
     }
 
     background: Rectangle {

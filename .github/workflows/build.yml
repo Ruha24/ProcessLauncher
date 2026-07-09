@@ -8,9 +8,7 @@ on:
 
 jobs:
   # ============================================================
-  #  WINDOWS: exe + Inno Setup установщик
-  #  Использует Qt 6.7 LTS (стабильно доступна на официальном
-  #  зеркале)
+  #  WINDOWS: exe + Inno Setup установщик (Qt 6.7 LTS, MSVC)
   # ============================================================
   windows:
     runs-on: windows-latest
@@ -43,13 +41,21 @@ jobs:
           copy build\appProcessLauncher.exe packaging\windows\dist\ProcessLauncher.exe
           windeployqt --qmldir qml --release --no-translations packaging\windows\dist\ProcessLauncher.exe
 
+      - name: Show dist contents (debug)
+        shell: cmd
+        run: |
+          echo --- dist ---
+          dir packaging\windows\dist
+          echo --- iss ---
+          dir packaging\windows\installer.iss
+
       - name: Install Inno Setup
         run: choco install innosetup --no-progress -y
 
       - name: Build installer (Inno Setup)
         shell: cmd
         run: |
-          iscc /O"installer_out" packaging\windows\installer.iss
+          iscc /O"%CD%\installer_out" "%CD%\packaging\windows\installer.iss"
 
       - name: Upload installer
         uses: actions/upload-artifact@v4

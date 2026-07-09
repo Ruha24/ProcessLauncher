@@ -7,10 +7,10 @@ import Theme
 ApplicationWindow {
     id: window
     visible: true
-    width: 520
-    height: 560
-    minimumWidth: 420
-    minimumHeight: 360
+    width: 560
+    height: 620
+    minimumWidth: 440
+    minimumHeight: 400
     title: qsTr("Process Launcher")
     color: Theme.surface
 
@@ -167,10 +167,11 @@ ApplicationWindow {
     }
 
     header: Rectangle {
-        implicitHeight: 190
+        implicitHeight: headerColumn.implicitHeight + 2 * Theme.spacingS
         color: Theme.surface
 
         ColumnLayout {
+            id: headerColumn
             anchors.fill: parent
             anchors.leftMargin: Theme.spacingL
             anchors.rightMargin: Theme.spacingL
@@ -244,6 +245,11 @@ ApplicationWindow {
                         }
                     }
                 }
+            }
+
+            Flow {
+                Layout.fillWidth: true
+                spacing: Theme.spacingS
 
                 AppButton {
                     text: qsTr("Settings")
@@ -1158,8 +1164,10 @@ ApplicationWindow {
         id: settingsDialog
         title: qsTr("Settings")
         anchors.centerIn: parent
-        width: 380
+        width: 460
+        height: Math.min(window.height - 2 * Theme.spacingL, 640)
         modal: true
+        padding: Theme.spacingL
         standardButtons: Dialog.Ok | Dialog.Cancel
 
         onAccepted: {
@@ -1180,8 +1188,18 @@ ApplicationWindow {
             border.color: Theme.outline
         }
 
-        contentItem: ColumnLayout {
-            spacing: Theme.spacing
+        contentItem: Flickable {
+            id: settingsFlick
+            clip: true
+            contentWidth: settingsCol.width
+            contentHeight: settingsCol.height
+            boundsBehavior: Flickable.StopAtBounds
+            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+            ColumnLayout {
+                id: settingsCol
+                width: settingsFlick.width
+                spacing: Theme.spacing
 
             RowLayout {
                 Layout.fillWidth: true
@@ -1366,6 +1384,7 @@ ApplicationWindow {
                     Layout.fillWidth: true
                     onClicked: importDialog.open()
                 }
+            }
             }
         }
     }

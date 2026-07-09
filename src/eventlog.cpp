@@ -118,7 +118,13 @@ void EventLogModel::logCrash(const QString& name, const QString& detail)
     LogEntry e;
     e.time = QDateTime::currentDateTime();
     e.kind = QStringLiteral("Crash");
-    e.text = detail.isEmpty() ? name : (name + QStringLiteral(" — ") + detail);
+
+    const QString n = name.trimmed().isEmpty()
+                          ? QStringLiteral("(unknown program)")
+                          : name.trimmed();
+    e.text = detail.trimmed().isEmpty()
+                 ? n
+                 : (n + QStringLiteral(" — ") + detail.trimmed());
     addEntry(e);
 }
 
