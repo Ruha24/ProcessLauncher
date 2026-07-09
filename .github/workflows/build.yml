@@ -67,7 +67,7 @@ jobs:
   #  MACOS: .app + .dmg
   # ============================================================
   macos:
-    runs-on: macos-latest
+    runs-on: macos-13
     steps:
       - uses: actions/checkout@v4
 
