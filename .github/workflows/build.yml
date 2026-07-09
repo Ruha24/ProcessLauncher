@@ -1,6 +1,5 @@
 name: Build installers
 
-# Запуск: при пуше в main, вручную (кнопкой в Actions), и на теги vX.Y.Z
 on:
   push:
     branches: [ main, master ]
@@ -10,38 +9,32 @@ on:
 jobs:
   # ============================================================
   #  WINDOWS: exe + Inno Setup установщик
+  #  Использует Qt 6.7 LTS (стабильно доступна на официальном
+  #  зеркале)
   # ============================================================
   windows:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Qt + MinGW
+      - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
-          version: '6.11.*'
+          version: '6.7.*'
           host: windows
           target: desktop
-          arch: win64_mingw
+          arch: win64_msvc2019_64
           modules: 'qtimageformats'
-          tools: 'tools_mingw1310 tools_ninja'
-          extra: '--base https://download.qt.io/'
+          cache: true
 
-      - name: Install build tools via choco
-        run: |
-            choco install mingw ninja --no-progress -y
-
-      - name: Add MinGW to PATH
-        shell: pwsh
-        run: |
-          $mingw = Get-ChildItem -Path "$env:RUNNER_WORKSPACE\Qt\Tools" -Filter "mingw*" -Directory | Select-Object -First 1
-          echo "$($mingw.FullName)\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
+      - name: Enable MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
 
       - name: Configure & build
         shell: cmd
         run: |
-          cmake -B build -G "Ninja" -DCMAKE_BUILD_TYPE=Release .
-          cmake --build build
+          cmake -B build -G "Ninja" -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 .
+          cmake --build build --config Release
 
       - name: Deploy Qt libraries
         shell: cmd
@@ -75,16 +68,16 @@ jobs:
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
-          version: '6.11.*'
+          version: '6.7.*'
           host: mac
           target: desktop
           arch: clang_64
           modules: 'qtimageformats'
-          extra: '--base https://download.qt.io/'
+          cache: true
 
       - name: Configure & build
         run: |
-          cmake -B build -DCMAKE_BUILD_TYPE=Release .
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 .
           cmake --build build
 
       - name: Package .dmg
