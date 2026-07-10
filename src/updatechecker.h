@@ -22,7 +22,8 @@ public:
     Q_INVOKABLE void runInstaller();
 
 signals:
-    void updateAvailable(const QString& version, const QString& url);
+
+    void updateAvailable(const QString& version, const QString& url, const QString& notes);
     void upToDate();
     void checkFailed(const QString& reason);
     void assetChanged();

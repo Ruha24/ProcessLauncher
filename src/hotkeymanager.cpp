@@ -5,16 +5,22 @@
 
 #ifdef Q_OS_WIN
 #include <windows.h>
-#ifndef MOD_NOREPEAT
-#define MOD_NOREPEAT 0x4000
 #endif
+
+#ifdef Q_OS_WIN
+HotkeyManager* HotkeyManager::s_instance = nullptr;
+
+namespace {
+LRESULT CALLBACK llKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam);
+}
 #endif
 
 HotkeyManager::HotkeyManager(QObject* parent)
     : QObject(parent)
 {
 #ifdef Q_OS_WIN
-    qApp->installNativeEventFilter(this);
+    s_instance = this;
+    installHook();
 #endif
 }
 
@@ -59,8 +65,9 @@ HotkeyManager::~HotkeyManager()
 {
     clearAll();
 #ifdef Q_OS_WIN
-    if (qApp)
-        qApp->removeNativeEventFilter(this);
+    removeHook();
+    if (s_instance == this)
+        s_instance = nullptr;
 #endif
 }
 
@@ -125,12 +132,11 @@ bool HotkeyManager::setHotkey(const QString& id, const QString& bind)
     if (!parseBind(bind, n))
         return false;
 
-    const int hotkeyId = m_nextHotkeyId++;
-    if (!RegisterHotKey(nullptr, hotkeyId, n.mods | MOD_NOREPEAT, n.vk))
-        return false;
-
-    m_idToHotkey.insert(id, hotkeyId);
-    m_hotkeyToId.insert(hotkeyId, id);
+    Binding b;
+    b.id = id;
+    b.mods = n.mods;
+    b.vk = n.vk;
+    m_bindings.append(b);
     return true;
 #else
     Q_UNUSED(bind)
@@ -140,42 +146,83 @@ bool HotkeyManager::setHotkey(const QString& id, const QString& bind)
 
 void HotkeyManager::clearHotkey(const QString& id)
 {
-    auto it = m_idToHotkey.find(id);
-    if (it == m_idToHotkey.end())
-        return;
-
-    const int hotkeyId = it.value();
-#ifdef Q_OS_WIN
-    UnregisterHotKey(nullptr, hotkeyId);
-#endif
-    m_hotkeyToId.remove(hotkeyId);
-    m_idToHotkey.erase(it);
+    for (int i = m_bindings.size() - 1; i >= 0; --i) {
+        if (m_bindings.at(i).id == id)
+            m_bindings.removeAt(i);
+    }
 }
 
 void HotkeyManager::clearAll()
 {
-    const QList<QString> ids = m_idToHotkey.keys();
-    for (const QString& id : ids)
-        clearHotkey(id);
+    m_bindings.clear();
 }
 
-bool HotkeyManager::nativeEventFilter(const QByteArray& eventType,
-                                      void* message, qintptr* result)
-{
-    Q_UNUSED(eventType)
-    Q_UNUSED(result)
 #ifdef Q_OS_WIN
-    auto* msg = static_cast<MSG*>(message);
-    if (msg && msg->message == WM_HOTKEY) {
-        const int hotkeyId = static_cast<int>(msg->wParam);
-        const auto it = m_hotkeyToId.constFind(hotkeyId);
-        if (it != m_hotkeyToId.constEnd()) {
-            emit activated(it.value());
+namespace {
+quint32 currentModifiers()
+{
+    quint32 mods = 0;
+    if (GetAsyncKeyState(VK_CONTROL) & 0x8000) mods |= MOD_CONTROL;
+    if (GetAsyncKeyState(VK_MENU)    & 0x8000) mods |= MOD_ALT;
+    if (GetAsyncKeyState(VK_SHIFT)   & 0x8000) mods |= MOD_SHIFT;
+    if ((GetAsyncKeyState(VK_LWIN) & 0x8000) || (GetAsyncKeyState(VK_RWIN) & 0x8000))
+        mods |= MOD_WIN;
+    return mods;
+}
+
+LRESULT CALLBACK llKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam)
+{
+    if (nCode == HC_ACTION && HotkeyManager::isHookInstance()
+        && (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN)) {
+        auto* kb = reinterpret_cast<KBDLLHOOKSTRUCT*>(lParam);
+        if (kb)
+            HotkeyManager::dispatchKey(kb->vkCode, currentModifiers());
+    }
+    return CallNextHookEx(nullptr, nCode, wParam, lParam);
+}
+}
+#endif
+
+void HotkeyManager::installHook()
+{
+#ifdef Q_OS_WIN
+    if (m_hook)
+        return;
+    m_hook = SetWindowsHookExW(WH_KEYBOARD_LL, &llKeyboardProc,
+                               GetModuleHandleW(nullptr), 0);
+#endif
+}
+
+void HotkeyManager::removeHook()
+{
+#ifdef Q_OS_WIN
+    if (m_hook) {
+        UnhookWindowsHookEx(static_cast<HHOOK>(m_hook));
+        m_hook = nullptr;
+    }
+#endif
+}
+
+bool HotkeyManager::handleKey(quint32 vk, quint32 activeMods)
+{
+    for (const Binding& b : m_bindings) {
+        if (b.vk == vk && b.mods == activeMods) {
+            emit activated(b.id);
             return true;
         }
     }
-#else
-    Q_UNUSED(message)
-#endif
     return false;
 }
+
+#ifdef Q_OS_WIN
+bool HotkeyManager::isHookInstance()
+{
+    return s_instance != nullptr;
+}
+
+void HotkeyManager::dispatchKey(quint32 vk, quint32 activeMods)
+{
+    if (s_instance)
+        s_instance->handleKey(vk, activeMods);
+}
+#endif

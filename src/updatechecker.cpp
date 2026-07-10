@@ -15,7 +15,8 @@
 #include <QFileInfo>
 
 namespace {
-const QString kCurrentVersion = QStringLiteral("1.2");
+
+const QString kCurrentVersion = QStringLiteral("1.3");
 const QString kApiUrl =
     QStringLiteral("https://api.github.com/repos/Ruha24/ProcessLauncher/releases/latest");
 }
@@ -96,13 +97,13 @@ void UpdateChecker::checkForUpdates()
         const QJsonObject obj = doc.object();
         const QString latestTag = obj.value(QStringLiteral("tag_name")).toString();
         const QString htmlUrl = obj.value(QStringLiteral("html_url")).toString();
+        const QString notes = obj.value(QStringLiteral("body")).toString();
 
         if (latestTag.isEmpty()) {
             emit checkFailed(QStringLiteral("No release found"));
             return;
         }
 
-        // Ищем ассет под текущую ОС (по расширению файла).
         m_assetUrl.clear();
         m_assetName.clear();
         const QString suffix = platformSuffix();
@@ -121,7 +122,7 @@ void UpdateChecker::checkForUpdates()
         emit assetChanged();
 
         if (compareVersions(latestTag, kCurrentVersion) > 0)
-            emit updateAvailable(normalize(latestTag), htmlUrl);
+            emit updateAvailable(normalize(latestTag), htmlUrl, notes);
         else
             emit upToDate();
     });

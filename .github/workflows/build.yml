@@ -3,13 +3,13 @@ name: Build installers
 on:
   push:
     branches: [ main, master ]
-    tags: [ 'v*' ]
+    tags: [ 'v*', '[0-9]*' ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
-  # ============================================================
-  #  WINDOWS: exe + Inno Setup установщик (Qt 6.7 LTS, MSVC)
-  # ============================================================
   windows:
     runs-on: windows-latest
     steps:
@@ -63,9 +63,12 @@ jobs:
           name: ProcessLauncher-Windows-Setup
           path: installer_out\*.exe
 
-  # ============================================================
-  #  MACOS: .app + .dmg
-  # ============================================================
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: installer_out/*.exe
+
   macos:
     runs-on: macos-latest
     steps:
@@ -114,3 +117,9 @@ jobs:
         with:
           name: ProcessLauncher-macOS-dmg
           path: ProcessLauncher.dmg
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ProcessLauncher.dmg

@@ -64,6 +64,7 @@ void EventLogModel::loadFromFile()
     QTextStream in(&f);
     while (!in.atEnd()) {
         const QString line = in.readLine();
+        // формат: ISOTIME \t KIND \t TEXT
         const QStringList parts = line.split(QLatin1Char('\t'));
         if (parts.size() < 3)
             continue;
@@ -75,6 +76,7 @@ void EventLogModel::loadFromFile()
     }
     f.close();
 
+    // новейшие сверху
     std::reverse(loaded.begin(), loaded.end());
     if (loaded.size() > kMaxEntries)
         loaded = loaded.mid(0, kMaxEntries);

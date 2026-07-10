@@ -65,6 +65,8 @@ QString resolveLnk(const QString& path, bool* ok)
 }
 #endif
 
+// .url — INI-подобный файл: [InternetShortcut] / URL=...
+// Берём только локальные цели (file:// или обычный путь к файлу).
 QString resolveUrlFile(const QString& path, bool* ok)
 {
     QFile f(path);
@@ -94,9 +96,9 @@ QString resolveUrlFile(const QString& path, bool* ok)
     if (url.isLocalFile())
         localPath = url.toLocalFile();
     else if (!url.scheme().isEmpty() && url.scheme() != QLatin1String("file"))
-        localPath = QString();
+        localPath = QString();          // http(s) и прочее — не запускаемая программа
     else
-        localPath = urlValue;
+        localPath = urlValue;           // голый путь без схемы
 
     const bool valid = !localPath.isEmpty() && QFileInfo(localPath).isFile();
     if (ok) *ok = valid;

@@ -1,4 +1,5 @@
 #include "processlistmodel.h"
+#include "hotkeymanager.h"
 
 #include <QGuiApplication>
 #include <QClipboard>
@@ -128,6 +129,11 @@ void ProcessListModel::removeProgram(const QString& id)
 void ProcessListModel::setBind(const QString& id, const QString& bind)
 {
     m_manager->setBind(id, bind);
+}
+
+bool ProcessListModel::isValidBind(const QString& bind) const
+{
+    return HotkeyManager::isValidBind(bind);
 }
 
 void ProcessListModel::setArgs(const QString& id, const QString& args)

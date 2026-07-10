@@ -4,9 +4,9 @@
 #include <QObject>
 #include <QHash>
 #include <QString>
-#include <QAbstractNativeEventFilter>
+#include <QList>
 
-class HotkeyManager : public QObject, public QAbstractNativeEventFilter
+class HotkeyManager : public QObject
 {
     Q_OBJECT
 
@@ -20,8 +20,10 @@ public:
 
     static bool isValidBind(const QString& bind);
 
-    bool nativeEventFilter(const QByteArray& eventType, void* message,
-                           qintptr* result) override;
+#ifdef Q_OS_WIN
+    static bool isHookInstance();
+    static void dispatchKey(quint32 vk, quint32 activeMods);
+#endif
 
 signals:
     void activated(const QString& id);
@@ -30,9 +32,22 @@ private:
     struct Native { quint32 mods = 0; quint32 vk = 0; };
     static bool parseBind(const QString& bind, Native& out);
 
-    int m_nextHotkeyId = 1;
-    QHash<QString, int> m_idToHotkey;
-    QHash<int, QString> m_hotkeyToId;
+    struct Binding {
+        QString  id;
+        quint32  mods = 0;
+        quint32  vk = 0;
+    };
+
+    void installHook();
+    void removeHook();
+    bool handleKey(quint32 vk, quint32 activeMods);
+
+    QList<Binding> m_bindings;
+
+#ifdef Q_OS_WIN
+    void* m_hook = nullptr;
+    static HotkeyManager* s_instance;
+#endif
 };
 
 #endif

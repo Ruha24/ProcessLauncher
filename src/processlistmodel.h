@@ -36,6 +36,7 @@ public:
     Q_INVOKABLE void addProgram(const QString& path, const QString& bind);
     Q_INVOKABLE void removeProgram(const QString& id);
     Q_INVOKABLE void setBind(const QString& id, const QString& bind);
+    Q_INVOKABLE bool isValidBind(const QString& bind) const;
     Q_INVOKABLE void setArgs(const QString& id, const QString& args);
     Q_INVOKABLE void setNote(const QString& id, const QString& note);
     Q_INVOKABLE void setProgramProfile(const QString& id, const QString& profile);

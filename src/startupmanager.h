@@ -9,8 +9,8 @@
 struct StartupEntry
 {
     QString name;
-    QString command;
-    QString source;
+    QString command;   // путь к exe / командная строка
+    QString source;    // "Registry (HKCU)" | "Startup folder"
     bool    enabled = true;
 };
 

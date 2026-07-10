@@ -37,9 +37,10 @@ ApplicationWindow {
 
     Connections {
         target: updateChecker
-        function onUpdateAvailable(version, url) {
+        function onUpdateAvailable(version, url, notes) {
             updateDialog.newVersion = version
             updateDialog.releaseUrl = url
+            updateDialog.notes = notes
             updateDialog.open()
         }
     }
@@ -1818,13 +1819,14 @@ ApplicationWindow {
         id: updateDialog
         property string newVersion: ""
         property string releaseUrl: ""
+        property string notes: ""
         property string phase: "idle"
         property real progress: 0
         property string errorText: ""
 
         title: qsTr("Update available")
         anchors.centerIn: parent
-        width: 400
+        width: 440
         modal: true
         standardButtons: Dialog.NoButton
         closePolicy: Popup.CloseOnEscape
@@ -1859,14 +1861,77 @@ ApplicationWindow {
         contentItem: ColumnLayout {
             spacing: Theme.spacing
 
-            Text {
+            RowLayout {
                 Layout.fillWidth: true
-                text: qsTr("Version %1 is available.\nYou have %2.")
-                      .arg(updateDialog.newVersion)
-                      .arg(updateChecker.currentVersion)
-                color: Theme.textPrimary
-                font.pixelSize: TypeScale.base
-                wrapMode: Text.WordWrap
+                spacing: Theme.spacing
+
+                Rectangle {
+                    Layout.preferredWidth: 44
+                    Layout.preferredHeight: 44
+                    radius: 22
+                    color: Theme.interactive
+                    Text {
+                        anchors.centerIn: parent
+                        text: "🎉"
+                        font.pixelSize: 22
+                    }
+                }
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 2
+                    Text {
+                        text: qsTr("Version %1 is here!").arg(updateDialog.newVersion)
+                        color: Theme.textPrimary
+                        font.pixelSize: TypeScale.h2
+                        font.weight: Font.Medium
+                    }
+                    Text {
+                        text: qsTr("You have %1").arg(updateChecker.currentVersion)
+                        color: Theme.textMuted
+                        font.pixelSize: TypeScale.caption
+                    }
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                visible: updateDialog.notes.trim().length > 0
+                radius: Theme.radiusSmall
+                color: Theme.surface
+                border.width: 1
+                border.color: Theme.outline
+                implicitHeight: Math.min(notesFlick.contentHeight + 2 * Theme.spacing, 180)
+
+                Flickable {
+                    id: notesFlick
+                    anchors.fill: parent
+                    anchors.margins: Theme.spacing
+                    clip: true
+                    contentWidth: width
+                    contentHeight: notesCol.height
+                    boundsBehavior: Flickable.StopAtBounds
+                    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+                    ColumnLayout {
+                        id: notesCol
+                        width: notesFlick.width
+                        spacing: 4
+                        Text {
+                            text: qsTr("What's new")
+                            color: Theme.interactive
+                            font.pixelSize: TypeScale.caption
+                            font.weight: Font.Medium
+                        }
+                        Text {
+                            Layout.fillWidth: true
+                            text: updateDialog.notes
+                            color: Theme.textPrimary
+                            font.pixelSize: TypeScale.caption
+                            wrapMode: Text.WordWrap
+                            textFormat: Text.PlainText
+                        }
+                    }
+                }
             }
 
             ColumnLayout {
