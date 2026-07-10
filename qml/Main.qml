@@ -624,8 +624,29 @@ ApplicationWindow {
         property string captured: ""
 
         title: qsTr("Set hotkey")
-        anchors.centerIn: parent
-        width: 360
+        header: Rectangle {
+            color: Theme.surfaceElevated
+            implicitHeight: hdrLabel_626.implicitHeight + 2 * Theme.spacing
+            radius: Theme.radius
+            Rectangle {
+                anchors.bottom: parent.bottom
+                width: parent.width
+                height: parent.radius
+                color: Theme.surfaceElevated
+            }
+            Text {
+                id: hdrLabel_626
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.left: parent.left
+                anchors.leftMargin: Theme.spacingL
+                text: bindDialog.title
+                color: Theme.textPrimary
+                font.pixelSize: TypeScale.h2
+                font.weight: Font.Medium
+            }
+        }
+        anchors.centerIn: Overlay.overlay
+        width: Math.min(360, window.width - 2 * Theme.spacingL)
         modal: true
         standardButtons: Dialog.Ok | Dialog.Cancel | Dialog.Reset
 
@@ -747,8 +768,29 @@ ApplicationWindow {
         property string targetId: ""
 
         title: qsTr("Launch arguments")
-        anchors.centerIn: parent
-        width: 380
+        header: Rectangle {
+            color: Theme.surfaceElevated
+            implicitHeight: hdrLabel_749.implicitHeight + 2 * Theme.spacing
+            radius: Theme.radius
+            Rectangle {
+                anchors.bottom: parent.bottom
+                width: parent.width
+                height: parent.radius
+                color: Theme.surfaceElevated
+            }
+            Text {
+                id: hdrLabel_749
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.left: parent.left
+                anchors.leftMargin: Theme.spacingL
+                text: argsDialog.title
+                color: Theme.textPrimary
+                font.pixelSize: TypeScale.h2
+                font.weight: Font.Medium
+            }
+        }
+        anchors.centerIn: Overlay.overlay
+        width: Math.min(380, window.width - 2 * Theme.spacingL)
         modal: true
         standardButtons: Dialog.Ok | Dialog.Cancel
 
@@ -799,8 +841,29 @@ ApplicationWindow {
         property string targetId: ""
 
         title: qsTr("Note")
-        anchors.centerIn: parent
-        width: 380
+        header: Rectangle {
+            color: Theme.surfaceElevated
+            implicitHeight: hdrLabel_801.implicitHeight + 2 * Theme.spacing
+            radius: Theme.radius
+            Rectangle {
+                anchors.bottom: parent.bottom
+                width: parent.width
+                height: parent.radius
+                color: Theme.surfaceElevated
+            }
+            Text {
+                id: hdrLabel_801
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.left: parent.left
+                anchors.leftMargin: Theme.spacingL
+                text: noteDialog.title
+                color: Theme.textPrimary
+                font.pixelSize: TypeScale.h2
+                font.weight: Font.Medium
+            }
+        }
+        anchors.centerIn: Overlay.overlay
+        width: Math.min(380, window.width - 2 * Theme.spacingL)
         modal: true
         standardButtons: Dialog.Ok | Dialog.Cancel
 
@@ -849,8 +912,29 @@ ApplicationWindow {
     Dialog {
         id: newProfileDialog
         title: qsTr("New profile")
-        anchors.centerIn: parent
-        width: 340
+        header: Rectangle {
+            color: Theme.surfaceElevated
+            implicitHeight: hdrLabel_851.implicitHeight + 2 * Theme.spacing
+            radius: Theme.radius
+            Rectangle {
+                anchors.bottom: parent.bottom
+                width: parent.width
+                height: parent.radius
+                color: Theme.surfaceElevated
+            }
+            Text {
+                id: hdrLabel_851
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.left: parent.left
+                anchors.leftMargin: Theme.spacingL
+                text: newProfileDialog.title
+                color: Theme.textPrimary
+                font.pixelSize: TypeScale.h2
+                font.weight: Font.Medium
+            }
+        }
+        anchors.centerIn: Overlay.overlay
+        width: Math.min(340, window.width - 2 * Theme.spacingL)
         modal: true
         standardButtons: Dialog.Ok | Dialog.Cancel
 
@@ -907,8 +991,29 @@ ApplicationWindow {
         property string captured: ""
 
         title: qsTr("Profile hotkey")
-        anchors.centerIn: parent
-        width: 360
+        header: Rectangle {
+            color: Theme.surfaceElevated
+            implicitHeight: hdrLabel_909.implicitHeight + 2 * Theme.spacing
+            radius: Theme.radius
+            Rectangle {
+                anchors.bottom: parent.bottom
+                width: parent.width
+                height: parent.radius
+                color: Theme.surfaceElevated
+            }
+            Text {
+                id: hdrLabel_909
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.left: parent.left
+                anchors.leftMargin: Theme.spacingL
+                text: profileBindDialog.title
+                color: Theme.textPrimary
+                font.pixelSize: TypeScale.h2
+                font.weight: Font.Medium
+            }
+        }
+        anchors.centerIn: Overlay.overlay
+        width: Math.min(360, window.width - 2 * Theme.spacingL)
         modal: true
         standardButtons: Dialog.Ok | Dialog.Cancel | Dialog.Reset
 
@@ -1015,8 +1120,29 @@ ApplicationWindow {
                                        "🔥","⭐","🎯","📁"]
 
         title: qsTr("Profile style")
-        anchors.centerIn: parent
-        width: 360
+        header: Rectangle {
+            color: Theme.surfaceElevated
+            implicitHeight: hdrLabel_1017.implicitHeight + 2 * Theme.spacing
+            radius: Theme.radius
+            Rectangle {
+                anchors.bottom: parent.bottom
+                width: parent.width
+                height: parent.radius
+                color: Theme.surfaceElevated
+            }
+            Text {
+                id: hdrLabel_1017
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.left: parent.left
+                anchors.leftMargin: Theme.spacingL
+                text: styleDialog.title
+                color: Theme.textPrimary
+                font.pixelSize: TypeScale.h2
+                font.weight: Font.Medium
+            }
+        }
+        anchors.centerIn: Overlay.overlay
+        width: Math.min(360, window.width - 2 * Theme.spacingL)
         modal: true
         standardButtons: Dialog.Ok | Dialog.Cancel
 
@@ -1113,8 +1239,29 @@ ApplicationWindow {
         property string currentProfile: ""
 
         title: qsTr("Move to profile")
-        anchors.centerIn: parent
-        width: 340
+        header: Rectangle {
+            color: Theme.surfaceElevated
+            implicitHeight: hdrLabel_1115.implicitHeight + 2 * Theme.spacing
+            radius: Theme.radius
+            Rectangle {
+                anchors.bottom: parent.bottom
+                width: parent.width
+                height: parent.radius
+                color: Theme.surfaceElevated
+            }
+            Text {
+                id: hdrLabel_1115
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.left: parent.left
+                anchors.leftMargin: Theme.spacingL
+                text: moveDialog.title
+                color: Theme.textPrimary
+                font.pixelSize: TypeScale.h2
+                font.weight: Font.Medium
+            }
+        }
+        anchors.centerIn: Overlay.overlay
+        width: Math.min(340, window.width - 2 * Theme.spacingL)
         modal: true
         standardButtons: Dialog.Cancel
 
@@ -1154,8 +1301,29 @@ ApplicationWindow {
         id: confirmDeleteDialog
         property string targetId: ""
         title: qsTr("Remove program")
-        anchors.centerIn: parent
-        width: 340
+        header: Rectangle {
+            color: Theme.surfaceElevated
+            implicitHeight: hdrLabel_1156.implicitHeight + 2 * Theme.spacing
+            radius: Theme.radius
+            Rectangle {
+                anchors.bottom: parent.bottom
+                width: parent.width
+                height: parent.radius
+                color: Theme.surfaceElevated
+            }
+            Text {
+                id: hdrLabel_1156
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.left: parent.left
+                anchors.leftMargin: Theme.spacingL
+                text: confirmDeleteDialog.title
+                color: Theme.textPrimary
+                font.pixelSize: TypeScale.h2
+                font.weight: Font.Medium
+            }
+        }
+        anchors.centerIn: Overlay.overlay
+        width: Math.min(340, window.width - 2 * Theme.spacingL)
         modal: true
         standardButtons: Dialog.Yes | Dialog.No
 
@@ -1179,8 +1347,29 @@ ApplicationWindow {
     Dialog {
         id: settingsDialog
         title: qsTr("Settings")
-        anchors.centerIn: parent
-        width: 460
+        header: Rectangle {
+            color: Theme.surfaceElevated
+            implicitHeight: hdrLabel_1181.implicitHeight + 2 * Theme.spacing
+            radius: Theme.radius
+            Rectangle {
+                anchors.bottom: parent.bottom
+                width: parent.width
+                height: parent.radius
+                color: Theme.surfaceElevated
+            }
+            Text {
+                id: hdrLabel_1181
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.left: parent.left
+                anchors.leftMargin: Theme.spacingL
+                text: settingsDialog.title
+                color: Theme.textPrimary
+                font.pixelSize: TypeScale.h2
+                font.weight: Font.Medium
+            }
+        }
+        anchors.centerIn: Overlay.overlay
+        width: Math.min(460, window.width - 2 * Theme.spacingL)
         height: Math.min(window.height - 2 * Theme.spacingL, 640)
         modal: true
         padding: Theme.spacingL
@@ -1408,7 +1597,28 @@ ApplicationWindow {
     Dialog {
         id: logDialog
         title: qsTr("Event log")
-        anchors.centerIn: parent
+        header: Rectangle {
+            color: Theme.surfaceElevated
+            implicitHeight: hdrLabel_1410.implicitHeight + 2 * Theme.spacing
+            radius: Theme.radius
+            Rectangle {
+                anchors.bottom: parent.bottom
+                width: parent.width
+                height: parent.radius
+                color: Theme.surfaceElevated
+            }
+            Text {
+                id: hdrLabel_1410
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.left: parent.left
+                anchors.leftMargin: Theme.spacingL
+                text: logDialog.title
+                color: Theme.textPrimary
+                font.pixelSize: TypeScale.h2
+                font.weight: Font.Medium
+            }
+        }
+        anchors.centerIn: Overlay.overlay
         width: Math.min(window.width - 2 * Theme.spacingL, 600)
         height: Math.min(window.height - 2 * Theme.spacingL, 520)
         modal: true
@@ -1476,7 +1686,7 @@ ApplicationWindow {
                             spacing: 2
                             Text {
                                 Layout.fillWidth: true
-                                text: kind + "  ·  " + text
+                                text: kind + "  ·  " + model.text
                                 color: Theme.textPrimary
                                 font.pixelSize: TypeScale.base
                                 elide: Text.ElideRight
@@ -1504,7 +1714,28 @@ ApplicationWindow {
     Dialog {
         id: startupDialog
         title: qsTr("Windows startup")
-        anchors.centerIn: parent
+        header: Rectangle {
+            color: Theme.surfaceElevated
+            implicitHeight: hdrLabel_1506.implicitHeight + 2 * Theme.spacing
+            radius: Theme.radius
+            Rectangle {
+                anchors.bottom: parent.bottom
+                width: parent.width
+                height: parent.radius
+                color: Theme.surfaceElevated
+            }
+            Text {
+                id: hdrLabel_1506
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.left: parent.left
+                anchors.leftMargin: Theme.spacingL
+                text: startupDialog.title
+                color: Theme.textPrimary
+                font.pixelSize: TypeScale.h2
+                font.weight: Font.Medium
+            }
+        }
+        anchors.centerIn: Overlay.overlay
         width: Math.min(window.width - 2 * Theme.spacingL, 560)
         height: Math.min(window.height - 2 * Theme.spacingL, 520)
         modal: true
@@ -1609,7 +1840,28 @@ ApplicationWindow {
         property string selProgramLabel: ""
 
         title: qsTr("Schedule")
-        anchors.centerIn: parent
+        header: Rectangle {
+            color: Theme.surfaceElevated
+            implicitHeight: hdrLabel_1611.implicitHeight + 2 * Theme.spacing
+            radius: Theme.radius
+            Rectangle {
+                anchors.bottom: parent.bottom
+                width: parent.width
+                height: parent.radius
+                color: Theme.surfaceElevated
+            }
+            Text {
+                id: hdrLabel_1611
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.left: parent.left
+                anchors.leftMargin: Theme.spacingL
+                text: scheduleDialog.title
+                color: Theme.textPrimary
+                font.pixelSize: TypeScale.h2
+                font.weight: Font.Medium
+            }
+        }
+        anchors.centerIn: Overlay.overlay
         width: Math.min(window.width - 2 * Theme.spacingL, 560)
         height: Math.min(window.height - 2 * Theme.spacingL, 620)
         modal: true
@@ -1825,8 +2077,29 @@ ApplicationWindow {
         property string errorText: ""
 
         title: qsTr("Update available")
-        anchors.centerIn: parent
-        width: 440
+        header: Rectangle {
+            color: Theme.surfaceElevated
+            implicitHeight: hdrLabel_1827.implicitHeight + 2 * Theme.spacing
+            radius: Theme.radius
+            Rectangle {
+                anchors.bottom: parent.bottom
+                width: parent.width
+                height: parent.radius
+                color: Theme.surfaceElevated
+            }
+            Text {
+                id: hdrLabel_1827
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.left: parent.left
+                anchors.leftMargin: Theme.spacingL
+                text: updateDialog.title
+                color: Theme.textPrimary
+                font.pixelSize: TypeScale.h2
+                font.weight: Font.Medium
+            }
+        }
+        anchors.centerIn: Overlay.overlay
+        width: Math.min(440, window.width - 2 * Theme.spacingL)
         modal: true
         standardButtons: Dialog.NoButton
         closePolicy: Popup.CloseOnEscape

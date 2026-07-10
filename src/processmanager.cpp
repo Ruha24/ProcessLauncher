@@ -1,6 +1,7 @@
 #include "processmanager.h"
 #include "jobcontroller.h"
 #include "hotkeymanager.h"
+#include "apppaths.h"
 #include "shortcutresolver.h"
 
 #include <QProcess>
@@ -52,10 +53,7 @@ ProcessManager::~ProcessManager()
 
 QString ProcessManager::configFilePath() const
 {
-    const QString dir =
-        QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
-    QDir().mkpath(dir);
-    return dir + QStringLiteral("/programs.json");
+    return AppPaths::configFile(QStringLiteral("programs.json"));
 }
 
 bool ProcessManager::exportConfig(const QString& path) const

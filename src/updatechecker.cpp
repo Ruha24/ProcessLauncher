@@ -168,15 +168,18 @@ void UpdateChecker::downloadUpdate()
 
     connect(reply, &QNetworkReply::finished, this, [this, reply, file, target]() {
         reply->deleteLater();
-        file->write(reply->readAll());
-        file->close();
-        file->deleteLater();
 
         if (reply->error() != QNetworkReply::NoError) {
+            file->close();
+            file->deleteLater();
             QFile::remove(target);
             emit downloadFailed(reply->errorString());
             return;
         }
+
+        file->write(reply->readAll());
+        file->close();
+        file->deleteLater();
 
         m_downloadedPath = target;
         emit downloadFinished(target);

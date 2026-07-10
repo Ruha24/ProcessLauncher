@@ -1,4 +1,5 @@
 #include "eventlog.h"
+#include "apppaths.h"
 
 #include <QStandardPaths>
 #include <QDir>
@@ -18,10 +19,7 @@ EventLogModel::EventLogModel(QObject* parent)
 
 QString EventLogModel::logFilePath() const
 {
-    const QString dir =
-        QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
-    QDir().mkpath(dir);
-    return dir + QStringLiteral("/events.log");
+    return AppPaths::configFile(QStringLiteral("events.log"));
 }
 
 int EventLogModel::rowCount(const QModelIndex& parent) const

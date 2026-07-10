@@ -1,6 +1,17 @@
 #include "windowstate.h"
+#include "apppaths.h"
 
 #include <QSettings>
+#include <QScopedPointer>
+
+namespace {
+QSettings* makeSettings(QObject* owner)
+{
+    if (AppPaths::isPortable())
+        return new QSettings(AppPaths::settingsFile(), QSettings::IniFormat, owner);
+    return new QSettings(owner);
+}
+}
 
 WindowState::WindowState(QObject* parent)
     : QObject(parent)
@@ -9,7 +20,8 @@ WindowState::WindowState(QObject* parent)
 
 QVariantMap WindowState::load() const
 {
-    QSettings s;
+    QScopedPointer<QSettings> sp(makeSettings(nullptr));
+    QSettings& s = *sp;
     s.beginGroup(QStringLiteral("window"));
     QVariantMap m;
     m[QStringLiteral("x")]      = s.value(QStringLiteral("x"), -1).toInt();
@@ -22,7 +34,8 @@ QVariantMap WindowState::load() const
 
 void WindowState::save(int x, int y, int width, int height)
 {
-    QSettings s;
+    QScopedPointer<QSettings> sp(makeSettings(nullptr));
+    QSettings& s = *sp;
     s.beginGroup(QStringLiteral("window"));
     s.setValue(QStringLiteral("x"), x);
     s.setValue(QStringLiteral("y"), y);
@@ -33,7 +46,8 @@ void WindowState::save(int x, int y, int width, int height)
 
 QVariant WindowState::value(const QString& key, const QVariant& def) const
 {
-    QSettings s;
+    QScopedPointer<QSettings> sp(makeSettings(nullptr));
+    QSettings& s = *sp;
     s.beginGroup(QStringLiteral("app"));
     const QVariant v = s.value(key, def);
     s.endGroup();
@@ -42,7 +56,8 @@ QVariant WindowState::value(const QString& key, const QVariant& def) const
 
 void WindowState::setValue(const QString& key, const QVariant& val)
 {
-    QSettings s;
+    QScopedPointer<QSettings> sp(makeSettings(nullptr));
+    QSettings& s = *sp;
     s.beginGroup(QStringLiteral("app"));
     s.setValue(key, val);
     s.endGroup();
@@ -50,7 +65,8 @@ void WindowState::setValue(const QString& key, const QVariant& val)
 
 bool WindowState::boolValue(const QString& key, bool def) const
 {
-    QSettings s;
+    QScopedPointer<QSettings> sp(makeSettings(nullptr));
+    QSettings& s = *sp;
     s.beginGroup(QStringLiteral("app"));
     const QVariant v = s.value(key);
     s.endGroup();

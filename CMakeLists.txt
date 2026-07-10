@@ -42,6 +42,8 @@ qt_add_executable(appProcessLauncher
     src/updatechecker.h
     src/schedulemodel.cpp
     src/schedulemodel.h
+    src/apppaths.cpp
+    src/apppaths.h
 )
 
 qt_add_qml_module(appProcessLauncher

@@ -6,12 +6,13 @@ Button {
     id: control
 
     property string variant: "secondary"
+    property int minWidth: 96
     property color accent: variant === "primary" ? Theme.interactive
                          : variant === "danger"  ? Theme.danger
                          : Theme.surfaceElevated
 
     implicitHeight: 38
-    implicitWidth: Math.max(96, implicitContentWidth + 2 * Theme.spacing)
+    implicitWidth: Math.max(minWidth, implicitContentWidth + 2 * Theme.spacing)
     padding: 0
     font.pixelSize: TypeScale.base
 

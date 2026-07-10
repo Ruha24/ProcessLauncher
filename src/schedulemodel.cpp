@@ -1,5 +1,6 @@
 #include "schedulemodel.h"
 #include "processmanager.h"
+#include "apppaths.h"
 
 #include <QTimer>
 #include <QStandardPaths>
@@ -29,10 +30,7 @@ ScheduleModel::ScheduleModel(ProcessManager* manager, QObject* parent)
 
 QString ScheduleModel::configFilePath() const
 {
-    const QString dir =
-        QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
-    QDir().mkpath(dir);
-    return dir + QStringLiteral("/schedule.json");
+    return AppPaths::configFile(QStringLiteral("schedule.json"));
 }
 
 int ScheduleModel::rowCount(const QModelIndex& parent) const

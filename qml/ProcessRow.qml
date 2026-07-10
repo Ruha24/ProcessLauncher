@@ -143,11 +143,21 @@ Item {
                 spacing: 2
 
                 Text {
+                    id: nameLabel
                     Layout.fillWidth: true
                     text: row.name
                     color: Theme.textPrimary
                     font.pixelSize: TypeScale.h2
                     elide: Text.ElideRight
+
+                    HoverHandler {
+                        id: nameHover
+                    }
+                    ToolTip {
+                        visible: nameHover.hovered && nameLabel.truncated
+                        text: row.name
+                        delay: 400
+                    }
                 }
                 Text {
                     Layout.fillWidth: true
@@ -176,7 +186,8 @@ Item {
             AppButton {
                 text: row.running ? qsTr("Stop") : qsTr("Start")
                 variant: row.running ? "danger" : "primary"
-                Layout.preferredWidth: 92
+                minWidth: 72
+                Layout.preferredWidth: 72
                 onClicked: row.running ? row.stopRequested(row.procId)
                                        : row.startRequested(row.procId)
             }
@@ -184,20 +195,23 @@ Item {
             AppButton {
                 text: qsTr("Bind")
                 variant: "secondary"
-                Layout.preferredWidth: 66
+                minWidth: 56
+                Layout.preferredWidth: 56
                 onClicked: row.editBindRequested(row.procId, row.bind)
             }
 
             AppButton {
                 text: qsTr("Args")
                 variant: "secondary"
-                Layout.preferredWidth: 66
+                minWidth: 56
+                Layout.preferredWidth: 56
                 onClicked: row.editArgsRequested(row.procId, row.args)
             }
 
             AppButton {
                 text: "⇄"
                 variant: "secondary"
+                minWidth: 40
                 Layout.preferredWidth: 40
                 onClicked: row.moveRequested(row.procId, row.profile)
             }
@@ -205,6 +219,7 @@ Item {
             AppButton {
                 text: "✕"
                 variant: "secondary"
+                minWidth: 40
                 Layout.preferredWidth: 40
                 onClicked: row.removeRequested(row.procId)
             }
