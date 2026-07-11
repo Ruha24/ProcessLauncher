@@ -16,7 +16,7 @@
 
 namespace {
 
-const QString kCurrentVersion = QStringLiteral("1.3");
+const QString kCurrentVersion = QStringLiteral("1.4");
 const QString kApiUrl =
     QStringLiteral("https://api.github.com/repos/Ruha24/ProcessLauncher/releases/latest");
 }
