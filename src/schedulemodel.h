@@ -53,6 +53,8 @@ public:
 
 private slots:
     void tick();
+    void onProfileRenamed(const QString& oldName, const QString& newName);
+    void onProfileRemoved(const QString& name);
 
 private:
     QString configFilePath() const;

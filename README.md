@@ -11,7 +11,7 @@ in the system tray.
 
 ## Installation
 
-**Windows.** Download `ProcessLauncher-Setup-1.0.exe` from the
+**Windows.** Download the latest `ProcessLauncher-Setup-x.y.exe` from the
 [releases page](https://github.com/Ruha24/ProcessLauncher/releases),
 run it and follow the wizard. It creates a Start Menu shortcut (and
 optionally a desktop one). No administrator rights required.
@@ -24,35 +24,43 @@ an unidentified developer — right-click the app → "Open".
 
 ## How to use
 
-**Add a program.** Click "+ Add" and pick an .exe, or just drag a
+The window has a sidebar on the left: your profiles on top, then
+Schedule, Startup, Log and Settings.
+
+**Add a program.** Click "Add program" and pick an .exe, or just drag a
 file (or an .lnk/.url shortcut) onto the window. Shortcuts are
 resolved automatically — the actual program is added, not the shortcut.
 
-**Start and stop.** Use the "Start" button next to a program,
-double-click the row, or assign a hotkey with "Bind". Right-click a
-program for more: restart, auto-restart, open file location, copy
-path, add a note.
+**Start and stop.** Use the "Start" button next to a program or
+double-click the row. The "⋯" button (or a right-click) opens the rest:
+restart, hotkey, launch arguments, note, auto-restart, move to another
+profile, open file location, copy path, remove.
 
-**Profiles.** Group programs into tabs (e.g. "Work" and "Games").
-Each profile can have a color and icon ("Style" button), its own
-hotkey, and a "Start all" button to launch everything at once.
+**Hotkeys.** Give a program or a whole profile a global hotkey — it
+works while the launcher sits in the background. On macOS use Cmd,
+Ctrl, Option and Shift as modifiers.
 
-**Autostart.** The "Start with Windows" checkbox makes the launcher
-start with your system. In Settings you can also pick a profile to
-launch automatically when the launcher opens.
+**Profiles.** Group programs (e.g. "Work" and "Games"). The number next
+to a profile shows how many of its programs are running. Use "Start
+all" to launch a whole profile; the "⋯" button next to it renames the
+profile, sets its color, icon and hotkey, or deletes it.
 
-**Crash watching.** Enable "Auto-restart" on a program via right-click
-— if it exits unexpectedly, the launcher brings it back. All crashes
-and errors are recorded in the log ("Log" button).
+**Schedule.** Start a profile or a single program at a set time, once
+or every day.
 
-**Startup manager (Windows).** The "Startup" button lists every
-program that launches with Windows and lets you enable, disable or
-remove them — just like Task Manager.
+**Crash watching.** Turn on "Restart if it stops" for a program — if it
+exits, the launcher brings it back. Everything that stopped or failed
+is listed on the Log page.
 
-**Settings** ("Settings" button): dark/light theme, close behavior
-(minimize to tray or quit), status refresh rate, delay between
-launches in a profile, and export/import of all settings to a file —
-handy for moving to another computer.
+**Startup.** Lists what launches together with your system and lets you
+turn entries off or remove them. On Windows it is the same list Task
+Manager shows; on macOS these are your launch agents.
+
+**Settings.** Dark/light theme, opening the launcher with the system,
+a profile to start when the launcher opens, what happens on close
+(stay in the tray or quit), whether quitting the launcher also closes
+the programs it started, timing, and export/import of everything to a
+file — handy for moving to another computer.
 
 ---
 
@@ -66,12 +74,15 @@ handy for moving to another computer.
 | System tray                  | yes     | yes   |
 | Start with system            | yes     | yes   |
 | Event log, update checks     | yes     | yes   |
-| Global hotkeys               | yes     | no    |
-| Startup manager              | yes     | no    |
+| Global hotkeys               | yes     | yes   |
+| Startup manager              | yes     | yes*  |
 | .lnk / .url resolution       | yes     | no    |
 
-Some features are Windows-only for now — on macOS they require special
-system permissions and are planned for later.
+\* On macOS the startup manager lists launch agents from
+`~/Library/LaunchAgents`; Login Items from System Settings are not shown.
+
+.lnk and .url shortcuts are a Windows format, so resolving them is
+Windows-only.
 
 ---
 
@@ -81,4 +92,4 @@ The app checks for a new version on startup and, if one is available,
 offers to open the download page. Installing is up to you — the app
 only notifies.
 
-License: see the LICENSE file (if you add one).
+License: Apache 2.0, see the LICENSE file.

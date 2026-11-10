@@ -6,6 +6,13 @@
 #include <QString>
 #include <QList>
 
+// Глобальные горячие клавиши.
+//   Windows — низкоуровневый перехват клавиатуры (WH_KEYBOARD_LL).
+//   macOS   — системные хоткеи Carbon (RegisterEventHotKey); особых
+//             разрешений (Accessibility / Input Monitoring) не требуют.
+//
+// Формат привязки одинаков на обеих системах: "Ctrl+Alt+K", "Shift+F5".
+// Модификаторы: Ctrl, Alt (Option), Shift, Win (Cmd на macOS).
 class HotkeyManager : public QObject
 {
     Q_OBJECT
@@ -20,33 +27,43 @@ public:
 
     static bool isValidBind(const QString& bind);
 
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN)
     static bool isHookInstance();
     static void dispatchKey(quint32 vk, quint32 activeMods);
+#elif defined(Q_OS_MACOS)
+    void handleNativeHotkey(quint32 nativeId);
 #endif
 
 signals:
     void activated(const QString& id);
 
 private:
-    struct Native { quint32 mods = 0; quint32 vk = 0; };
-    static bool parseBind(const QString& bind, Native& out);
-
     struct Binding {
         QString  id;
         quint32  mods = 0;
         quint32  vk = 0;
+        quint32  nativeId = 0;        // macOS: номер зарегистрированного хоткея
+        void*    nativeRef = nullptr; // macOS: EventHotKeyRef
     };
 
+    // Переводит строку привязки в модификаторы и код клавиши текущей системы.
+    static bool parseBind(const QString& bind, quint32& mods, quint32& vk);
+
+    bool registerNative(Binding& b);
+    void unregisterNative(Binding& b);
+
+    QList<Binding> m_bindings;
+
+#if defined(Q_OS_WIN)
     void installHook();
     void removeHook();
     bool handleKey(quint32 vk, quint32 activeMods);
 
-    QList<Binding> m_bindings;
-
-#ifdef Q_OS_WIN
     void* m_hook = nullptr;
     static HotkeyManager* s_instance;
+#elif defined(Q_OS_MACOS)
+    void*   m_eventHandler = nullptr;   // EventHandlerRef
+    quint32 m_nextNativeId = 1;
 #endif
 };
 

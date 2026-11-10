@@ -100,6 +100,8 @@ bool AutostartManager::createShortcut() const
         return false;
 
     QDir().mkpath(QFileInfo(plistPath).absolutePath());
+    // Запись могли выключить через менеджер автозагрузки — убираем её копию.
+    QFile::remove(plistPath + QStringLiteral(".disabled"));
 
     const QString exePath = QCoreApplication::applicationFilePath();
     const QString plist =

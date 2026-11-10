@@ -10,6 +10,24 @@ JobController::~JobController()
     closeHandle();
 }
 
+namespace {
+bool applyKillOnClose(HANDLE job, bool on)
+{
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION info{};
+    info.BasicLimitInformation.LimitFlags =
+        on ? JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE : 0;
+    return SetInformationJobObject(job, JobObjectExtendedLimitInformation,
+                                   &info, sizeof(info)) != FALSE;
+}
+}
+
+void JobController::setKillOnClose(bool on)
+{
+    m_killOnClose = on;
+    if (m_job)
+        applyKillOnClose(static_cast<HANDLE>(m_job), on);
+}
+
 bool JobController::assign(qint64 pid)
 {
     if (!m_job) {
@@ -17,10 +35,7 @@ bool JobController::assign(qint64 pid)
         if (!job)
             return false;
 
-        JOBOBJECT_EXTENDED_LIMIT_INFORMATION info{};
-        info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-        if (!SetInformationJobObject(job, JobObjectExtendedLimitInformation,
-                                     &info, sizeof(info))) {
+        if (!applyKillOnClose(job, m_killOnClose)) {
             CloseHandle(job);
             return false;
         }
@@ -68,6 +83,24 @@ void JobController::closeHandle()
     }
 }
 
+bool JobController::isPidAlive(qint64 pid)
+{
+    if (pid <= 0)
+        return false;
+
+    HANDLE hProc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE,
+                               static_cast<DWORD>(pid));
+    if (!hProc) {
+        // Нет доступа — процесс есть, просто он нам не по правам.
+        return GetLastError() == ERROR_ACCESS_DENIED;
+    }
+
+    DWORD code = 0;
+    const BOOL ok = GetExitCodeProcess(hProc, &code);
+    CloseHandle(hProc);
+    return ok && code == STILL_ACTIVE;
+}
+
 #else
 
 #include <csignal>
@@ -80,6 +113,13 @@ JobController::JobController() = default;
 JobController::~JobController()
 {
     closeHandle();
+}
+
+void JobController::setKillOnClose(bool on)
+{
+    // Здесь процессы и так переживают лаунчер; при выходе их останавливает
+    // ProcessManager явным terminate().
+    m_killOnClose = on;
 }
 
 bool JobController::assign(qint64 pid)
@@ -120,6 +160,13 @@ void JobController::terminate()
 void JobController::closeHandle()
 {
     m_pid = 0;
+}
+
+bool JobController::isPidAlive(qint64 pid)
+{
+    if (pid <= 0)
+        return false;
+    return kill(static_cast<pid_t>(pid), 0) == 0 || errno == EPERM;
 }
 
 #endif

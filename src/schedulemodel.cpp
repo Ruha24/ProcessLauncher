@@ -6,6 +6,7 @@
 #include <QStandardPaths>
 #include <QDir>
 #include <QFile>
+#include <QSaveFile>
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QJsonObject>
@@ -24,6 +25,12 @@ ScheduleModel::ScheduleModel(ProcessManager* manager, QObject* parent)
 {
     load();
     connect(m_timer, &QTimer::timeout, this, &ScheduleModel::tick);
+    if (m_manager) {
+        connect(m_manager, &ProcessManager::profileRenamed,
+                this, &ScheduleModel::onProfileRenamed);
+        connect(m_manager, &ProcessManager::profileRemoved,
+                this, &ScheduleModel::onProfileRemoved);
+    }
     m_timer->start(kCheckIntervalMs);
     tick();
 }
@@ -116,6 +123,42 @@ void ScheduleModel::removeRule(int row)
     save();
 }
 
+void ScheduleModel::onProfileRenamed(const QString& oldName, const QString& newName)
+{
+    bool changed = false;
+    for (int i = 0; i < m_rules.size(); ++i) {
+        ScheduleRule& r = m_rules[i];
+        if (r.targetType != QLatin1String("profile") || r.targetId != oldName)
+            continue;
+        const bool labelWasName = (r.targetLabel == oldName);
+        r.targetId = newName;
+        if (labelWasName)
+            r.targetLabel = newName;
+        const QModelIndex idx = index(i, 0);
+        emit dataChanged(idx, idx, {TargetIdRole, TargetLabelRole});
+        changed = true;
+    }
+    if (changed)
+        save();
+}
+
+void ScheduleModel::onProfileRemoved(const QString& name)
+{
+    // Правило без цели всё равно ничего не запустит — убираем его.
+    bool changed = false;
+    for (int i = m_rules.size() - 1; i >= 0; --i) {
+        const ScheduleRule& r = m_rules.at(i);
+        if (r.targetType != QLatin1String("profile") || r.targetId != name)
+            continue;
+        beginRemoveRows(QModelIndex(), i, i);
+        m_rules.removeAt(i);
+        endRemoveRows();
+        changed = true;
+    }
+    if (changed)
+        save();
+}
+
 void ScheduleModel::tick()
 {
     if (!m_manager)
@@ -205,9 +248,9 @@ void ScheduleModel::save() const
              r.lastRun.isValid() ? r.lastRun.toString(Qt::ISODate) : QString()},
         });
     }
-    QFile f(configFilePath());
-    if (!f.open(QIODevice::WriteOnly | QIODevice::Text))
+    QSaveFile f(configFilePath());
+    if (!f.open(QIODevice::WriteOnly))
         return;
     f.write(QJsonDocument(arr).toJson(QJsonDocument::Indented));
-    f.close();
+    f.commit();
 }

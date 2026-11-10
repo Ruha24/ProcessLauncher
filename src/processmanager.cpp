@@ -10,12 +10,14 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QSaveFile>
 #include <QUuid>
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QUrl>
 #include <algorithm>
+#include <utility>
 
 namespace {
 constexpr int kPollIntervalMs = 1200;
@@ -46,9 +48,28 @@ ProcessManager::ProcessManager(QObject* parent)
 
 ProcessManager::~ProcessManager()
 {
-
+    // Выход из лаунчера: в зависимости от настройки либо закрываем всё, что
+    // запускали, либо оставляем программы работать дальше.
+    if (m_killOnExit) {
+        for (JobController* job : std::as_const(m_jobs))
+            job->terminate();
+    }
     qDeleteAll(m_jobs);
     m_jobs.clear();
+}
+
+bool ProcessManager::killOnExit() const
+{
+    return m_killOnExit;
+}
+
+void ProcessManager::setKillOnExit(bool on)
+{
+    if (m_killOnExit == on)
+        return;
+    m_killOnExit = on;
+    for (JobController* job : std::as_const(m_jobs))
+        job->setKillOnClose(on);
 }
 
 QString ProcessManager::configFilePath() const
@@ -81,25 +102,29 @@ bool ProcessManager::importConfig(const QString& path)
 
     QJsonParseError err{};
     const QJsonDocument doc = QJsonDocument::fromJson(raw, &err);
-    if (doc.isNull() || (!doc.isObject() && !doc.isArray()))
+    if (doc.isNull())
+        return false;
+
+    // Принимаем только то, что похоже на наш конфиг: иначе любой посторонний
+    // .json молча стёр бы все программы и профили.
+    if (doc.isObject()) {
+        if (!doc.object().value(QStringLiteral("programs")).isArray())
+            return false;
+    } else if (!doc.isArray()) {
+        return false;
+    }
+
+    // Сначала надёжно пишем файл — и только после успеха трогаем текущее
+    // состояние. При ошибке записи всё остаётся как было.
+    QSaveFile out(configFilePath());
+    if (!out.open(QIODevice::WriteOnly))
+        return false;
+    out.write(raw);
+    if (!out.commit())
         return false;
 
     stopAll();
-    m_hotkeys->clearAll();
-    m_launchQueue.clear();
-
-    m_entries.clear();
-    m_profiles.clear();
-    m_profileBinds.clear();
-    m_launchDelayMs = 0;
-    m_autoStartProfile.clear();
-
-    QFile out(configFilePath());
-    if (!out.open(QIODevice::WriteOnly | QIODevice::Text))
-        return false;
-    out.write(raw);
-    out.close();
-
+    resetState();
     load();
     emit listChanged();
     emit profilesChanged();
@@ -148,8 +173,11 @@ void ProcessManager::removeProfile(const QString& name)
     m_profileColors.remove(name);
     m_profileIcons.remove(name);
     m_profiles.removeAll(name);
+    if (m_autoStartProfile == name)
+        m_autoStartProfile.clear();
 
     save();
+    emit profileRemoved(name);
     emit profilesChanged();
     emit listChanged();
 }
@@ -175,8 +203,11 @@ void ProcessManager::renameProfile(const QString& oldName, const QString& newNam
         m_profileColors.insert(n, m_profileColors.take(oldName));
     if (m_profileIcons.contains(oldName))
         m_profileIcons.insert(n, m_profileIcons.take(oldName));
+    if (m_autoStartProfile == oldName)
+        m_autoStartProfile = n;
 
     save();
+    emit profileRenamed(oldName, n);
     emit profilesChanged();
     emit listChanged();
 }
@@ -408,6 +439,11 @@ void ProcessManager::start(const QString& id)
         return;
     if (m_jobs.contains(id))
         return;
+    if (const auto ut = m_untracked.constFind(id); ut != m_untracked.constEnd()) {
+        if (JobController::isPidAlive(ut.value()))
+            return;
+        m_untracked.remove(id);
+    }
 
     QProcess proc;
     proc.setProgram(it->path);
@@ -424,18 +460,28 @@ void ProcessManager::start(const QString& id)
     }
 
     auto* job = new JobController();
+    job->setKillOnClose(m_killOnExit);
     if (job->assign(pid)) {
         m_jobs.insert(id, job);
-        if (!m_pollTimer->isActive())
-            m_pollTimer->start();
     } else {
-
+        // В job поместить не вышло (чаще всего — программа с повышением прав).
+        // Остановить её мы не сможем, но за тем, жива ли она, следим по PID.
         delete job;
-        m_untracked.insert(id);
+        m_untracked.insert(id, pid);
     }
 
     m_startTimes.insert(id, QDateTime::currentDateTime());
+    updatePollTimer();
     emit runStateChanged(id, true);
+}
+
+void ProcessManager::updatePollTimer()
+{
+    const bool needed = !m_jobs.isEmpty() || !m_untracked.isEmpty();
+    if (needed && !m_pollTimer->isActive())
+        m_pollTimer->start();
+    else if (!needed && m_pollTimer->isActive())
+        m_pollTimer->stop();
 }
 
 void ProcessManager::stop(const QString& id)
@@ -452,9 +498,7 @@ void ProcessManager::stop(const QString& id)
         wasRunning = true;
 
     m_startTimes.remove(id);
-
-    if (m_jobs.isEmpty() && m_pollTimer->isActive())
-        m_pollTimer->stop();
+    updatePollTimer();
 
     if (wasRunning)
         emit runStateChanged(id, false);
@@ -534,8 +578,8 @@ void ProcessManager::setAutoStartProfile(const QString& name)
 
 bool ProcessManager::isRunning(const QString& id) const
 {
-    if (m_untracked.contains(id))
-        return true;
+    if (const auto ut = m_untracked.constFind(id); ut != m_untracked.constEnd())
+        return JobController::isPidAlive(ut.value());
     const auto it = m_jobs.constFind(id);
     return it != m_jobs.constEnd() && it.value()->isAlive();
 }
@@ -588,41 +632,62 @@ void ProcessManager::pollJobs()
         if (!it.value()->isAlive())
             finished.append(it.key());
     }
-
-    for (const QString& id : finished) {
-        auto jt = m_jobs.find(id);
-        if (jt != m_jobs.end()) {
-            delete jt.value();
-            m_jobs.erase(jt);
-        }
-        m_startTimes.remove(id);
-
-        const auto e = m_entries.constFind(id);
-        const bool shouldWatch = (e != m_entries.constEnd() && e->watch);
-        QString exitedName, exitedProfile;
-        if (e != m_entries.constEnd()) {
-            exitedName = e->name;
-            exitedProfile = e->profile;
-        }
-
-        emit runStateChanged(id, false);
-
-        if (shouldWatch) {
-            emit processExited(exitedName,
-                               tr("%1 — restarting").arg(exitedProfile));
-            QTimer::singleShot(500, this, [this, id]() {
-                if (m_entries.contains(id) && watch(id) && !isRunning(id))
-                    start(id);
-            });
-        } else {
-            emit processExited(exitedName, exitedProfile);
-        }
+    for (auto it = m_untracked.constBegin(); it != m_untracked.constEnd(); ++it) {
+        if (!JobController::isPidAlive(it.value()))
+            finished.append(it.key());
     }
 
-    if (m_jobs.isEmpty() && m_pollTimer->isActive())
-        m_pollTimer->stop();
+    for (const QString& id : finished)
+        handleExit(id);
 
+    updatePollTimer();
     emit tick();
+}
+
+void ProcessManager::handleExit(const QString& id)
+{
+    if (auto jt = m_jobs.find(id); jt != m_jobs.end()) {
+        delete jt.value();
+        m_jobs.erase(jt);
+    }
+    m_untracked.remove(id);
+    m_startTimes.remove(id);
+
+    const auto e = m_entries.constFind(id);
+    const bool shouldWatch = (e != m_entries.constEnd() && e->watch);
+    QString exitedName, exitedProfile;
+    if (e != m_entries.constEnd()) {
+        exitedName = e->name;
+        exitedProfile = e->profile;
+    }
+
+    emit runStateChanged(id, false);
+
+    if (shouldWatch) {
+        emit processExited(exitedName,
+                           tr("%1 — restarting").arg(exitedProfile));
+        QTimer::singleShot(500, this, [this, id]() {
+            if (m_entries.contains(id) && watch(id) && !isRunning(id))
+                start(id);
+        });
+    } else {
+        emit processExited(exitedName, exitedProfile);
+    }
+}
+
+void ProcessManager::resetState()
+{
+    m_hotkeys->clearAll();
+    m_launchQueue.clear();
+    m_launchTimer->stop();
+
+    m_entries.clear();
+    m_profiles.clear();
+    m_profileBinds.clear();
+    m_profileColors.clear();
+    m_profileIcons.clear();
+    m_launchDelayMs = 0;
+    m_autoStartProfile.clear();
 }
 
 void ProcessManager::syncHotkey(const QString& id)
@@ -681,13 +746,18 @@ void ProcessManager::save() const
         {QStringLiteral("autoStartProfile"), m_autoStartProfile},
     };
 
-    QFile file(configFilePath());
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+    // QSaveFile пишет во временный файл и подменяет им настоящий только при
+    // успехе: сбой или выключение посреди записи не оставит обрезанный конфиг.
+    QSaveFile file(configFilePath());
+    if (!file.open(QIODevice::WriteOnly)) {
         qWarning("ProcessManager: cannot write config: %s",
                  qPrintable(file.errorString()));
         return;
     }
     file.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
+    if (!file.commit())
+        qWarning("ProcessManager: cannot write config: %s",
+                 qPrintable(file.errorString()));
 }
 
 void ProcessManager::load()
@@ -707,11 +777,19 @@ void ProcessManager::load()
     }
 
     const QByteArray raw = file.readAll();
+    file.close();
     QJsonParseError parseError{};
     const QJsonDocument doc = QJsonDocument::fromJson(raw, &parseError);
     if (doc.isNull()) {
         qWarning("ProcessManager: invalid config JSON: %s",
                  qPrintable(parseError.errorString()));
+        // Повреждённый файл не выбрасываем: откладываем копию, чтобы следующее
+        // сохранение не затёрло то, что ещё можно восстановить руками.
+        const QString backup = configFilePath() + QStringLiteral(".broken");
+        QFile::remove(backup);
+        QFile::copy(configFilePath(), backup);
+        if (m_profiles.isEmpty())
+            m_profiles.append(QStringLiteral("Default"));
         return;
     }
 

@@ -4,6 +4,7 @@
 #include <QStandardPaths>
 #include <QDir>
 #include <QFile>
+#include <QSaveFile>
 #include <QTextStream>
 #include <algorithm>
 
@@ -74,10 +75,25 @@ void EventLogModel::loadFromFile()
     }
     f.close();
 
+    // В окне показываем только последние kMaxEntries записей — и сам файл
+    // обрезаем до них же, иначе он растёт без конца.
+    if (loaded.size() > kMaxEntries) {
+        loaded = loaded.mid(loaded.size() - kMaxEntries);
+        QSaveFile out(logFilePath());
+        if (out.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            QTextStream ts(&out);
+            for (const LogEntry& e : loaded) {
+                ts << e.time.toString(Qt::ISODate) << '\t'
+                   << e.kind << '\t'
+                   << e.text << '\n';
+            }
+            ts.flush();
+            out.commit();
+        }
+    }
+
     // новейшие сверху
     std::reverse(loaded.begin(), loaded.end());
-    if (loaded.size() > kMaxEntries)
-        loaded = loaded.mid(0, kMaxEntries);
 
     beginResetModel();
     m_rows = loaded;

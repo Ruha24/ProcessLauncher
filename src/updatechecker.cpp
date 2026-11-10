@@ -13,10 +13,10 @@
 #include <QDesktopServices>
 #include <QProcess>
 #include <QFileInfo>
+#include <QCoreApplication>
 
 namespace {
 
-const QString kCurrentVersion = QStringLiteral("1.4");
 const QString kApiUrl =
     QStringLiteral("https://api.github.com/repos/Ruha24/ProcessLauncher/releases/latest");
 }
@@ -29,7 +29,7 @@ UpdateChecker::UpdateChecker(QObject* parent)
 
 QString UpdateChecker::currentVersion() const
 {
-    return kCurrentVersion;
+    return QCoreApplication::applicationVersion();
 }
 
 bool UpdateChecker::canDownload() const
@@ -76,6 +76,7 @@ void UpdateChecker::checkForUpdates()
     req.setHeader(QNetworkRequest::UserAgentHeader,
                   QStringLiteral("ProcessLauncher-UpdateChecker"));
     req.setRawHeader("Accept", "application/vnd.github+json");
+    req.setTransferTimeout(15000);
 
     QNetworkReply* reply = m_net->get(req);
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
@@ -121,7 +122,7 @@ void UpdateChecker::checkForUpdates()
         }
         emit assetChanged();
 
-        if (compareVersions(latestTag, kCurrentVersion) > 0)
+        if (compareVersions(latestTag, currentVersion()) > 0)
             emit updateAvailable(normalize(latestTag), htmlUrl, notes);
         else
             emit upToDate();
@@ -191,5 +192,8 @@ void UpdateChecker::runInstaller()
     if (m_downloadedPath.isEmpty() || !QFileInfo::exists(m_downloadedPath))
         return;
 
-    QDesktopServices::openUrl(QUrl::fromLocalFile(m_downloadedPath));
+    // Установщик не может заменить работающий exe, поэтому после его запуска
+    // сами выходим. По окончании установки он запустит приложение заново.
+    if (QDesktopServices::openUrl(QUrl::fromLocalFile(m_downloadedPath)))
+        QCoreApplication::quit();
 }

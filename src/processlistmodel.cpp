@@ -236,6 +236,11 @@ void ProcessListModel::setWatch(const QString& id, bool on)
     m_manager->setWatch(id, on);
 }
 
+void ProcessListModel::setKillOnExit(bool on)
+{
+    m_manager->setKillOnExit(on);
+}
+
 int ProcessListModel::launchDelayMs() const
 {
     return m_manager->launchDelayMs();

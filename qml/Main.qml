@@ -6,71 +6,32 @@ import Theme
 
 ApplicationWindow {
     id: window
+
     visible: true
-    width: 560
-    height: 620
-    minimumWidth: 440
-    minimumHeight: 400
+    width: 940
+    height: 640
+    minimumWidth: 760
+    minimumHeight: 480
     title: qsTr("Process Launcher")
     color: Theme.surface
 
-    property bool minimizeToTray: true
-
-    Component.onCompleted: {
-        var g = windowState.load()
-        if (g.width > 0 && g.height > 0) {
-            window.width = g.width
-            window.height = g.height
-        }
-        if (g.x !== -1 && g.y !== -1) {
-            window.x = g.x
-            window.y = g.y
-        }
-        Theme.dark = windowState.boolValue("theme_dark", true)
-        window.minimizeToTray = windowState.boolValue("minimize_to_tray", true)
-        var poll = parseInt(windowState.value("poll_interval", 0))
-        if (poll > 0) processModel.setPollInterval(poll)
-        refreshProfiles()
-        refreshCounts()
-        updateChecker.checkForUpdates()
-    }
-
-    Connections {
-        target: updateChecker
-        function onUpdateAvailable(version, url, notes) {
-            updateDialog.newVersion = version
-            updateDialog.releaseUrl = url
-            updateDialog.notes = notes
-            updateDialog.open()
-        }
-    }
-
-    onXChanged: windowState.save(window.x, window.y, window.width, window.height)
-    onYChanged: windowState.save(window.x, window.y, window.width, window.height)
-    onWidthChanged: windowState.save(window.x, window.y, window.width, window.height)
-    onHeightChanged: windowState.save(window.x, window.y, window.width, window.height)
-
+    // ------------------------------------------------------------------
+    // Состояние
+    // ------------------------------------------------------------------
+    property string page: "programs"   // programs | schedule | startup | log | settings
     property string activeProfile: ""
     property var profileList: []
-    property int profileRunning: 0
-    property int profileTotal: 0
+    property bool minimizeToTray: true
+    property bool killOnExit: true
 
-    function refreshCounts() {
-        profileRunning = processModel.profileRunningCount(activeProfile)
-        profileTotal = processModel.profileTotalCount(activeProfile)
-    }
-
-    function safeColor(c, fallback) {
-        return (c && c.length > 0) ? c : fallback
-    }
-
+    // Счётчики и оформление профилей читаются вызовами методов модели, поэтому
+    // привязки «подталкиваются» этими номерами версий.
+    property int countsVersion: 0
     property int styleVersion: 0
 
-    Connections {
-        target: processModel
-        function onTick() { window.refreshCounts() }
-        function onProfilesChanged() { window.styleVersion++ }
-    }
+    readonly property var pages: ["programs", "schedule", "startup", "log", "settings"]
+
+    function refreshCounts() { countsVersion++ }
 
     function refreshProfiles() {
         var list = processModel.profiles()
@@ -81,14 +42,51 @@ ApplicationWindow {
         filteredModel.setActiveProfile(activeProfile)
     }
 
+    function showProfile(name) {
+        activeProfile = name
+        page = "programs"
+    }
+
     onActiveProfileChanged: {
         filteredModel.setActiveProfile(activeProfile)
         refreshCounts()
     }
 
-    Connections {
-        target: processModel
-        function onProfilesChanged() { refreshProfiles() }
+    Component.onCompleted: {
+        var g = windowState.load()
+        if (g.width > 0 && g.height > 0) {
+            window.width = Math.max(g.width, minimumWidth)
+            window.height = Math.max(g.height, minimumHeight)
+        }
+        if (g.x !== -1 && g.y !== -1) {
+            window.x = g.x
+            window.y = g.y
+        }
+        Theme.dark = windowState.boolValue("theme_dark", true)
+        minimizeToTray = windowState.boolValue("minimize_to_tray", true)
+        killOnExit = windowState.boolValue("kill_on_exit", true)
+        processModel.setKillOnExit(killOnExit)
+        var poll = parseInt(windowState.value("poll_interval", 0))
+        if (poll > 0) processModel.setPollInterval(poll)
+        refreshProfiles()
+        geometryReady = true
+        updateChecker.checkForUpdates()
+    }
+
+    // Положение окна сохраняем с задержкой, а не на каждый пиксель перетаскивания.
+    property bool geometryReady: false
+    function geometryChanged() { if (geometryReady) geometryTimer.restart() }
+    onXChanged: geometryChanged()
+    onYChanged: geometryChanged()
+    onWidthChanged: geometryChanged()
+    onHeightChanged: geometryChanged()
+    Timer {
+        id: geometryTimer
+        interval: 400
+        onTriggered: {
+            if (window.visibility === Window.Windowed)
+                windowState.save(window.x, window.y, window.width, window.height)
+        }
     }
 
     onClosing: (close) => {
@@ -102,475 +100,397 @@ ApplicationWindow {
 
     Connections {
         target: processModel
-        function onErrorMessage(text) {
-            errorBanner.text = text
-            errorBanner.show()
+        function onTick() { window.refreshCounts() }
+        function onProfilesChanged() {
+            window.refreshProfiles()
+            window.styleVersion++
+            window.refreshCounts()
         }
-    }
-
-    Connections {
-        target: processModel
+        function onErrorMessage(text) { window.toast(text, true) }
         function onProcessExited(name, profile) {
             if (tray.isAvailable())
                 tray.notify(qsTr("Program stopped"),
                             qsTr("%1 (%2) is no longer running.").arg(name).arg(profile))
             window.refreshCounts()
         }
+        function onRowsInserted() { window.refreshCounts() }
+        function onRowsRemoved() { window.refreshCounts() }
+        function onModelReset() { window.refreshCounts() }
+        function onDataChanged() { window.refreshCounts() }
     }
 
     Connections {
         target: startupModel
-        function onErrorMessage(text) {
-            errorBanner.text = text
-            errorBanner.show()
+        function onErrorMessage(text) { window.toast(text, true) }
+    }
+
+    Connections {
+        target: updateChecker
+        function onUpdateAvailable(version, url, notes) {
+            updateDialog.newVersion = version
+            updateDialog.releaseUrl = url
+            updateDialog.notes = notes
+            updateDialog.open()
         }
     }
 
-    Rectangle {
-        id: errorBanner
-        property string text: ""
-        function show() { visible = true; opacity = 1; hideTimer.restart() }
-
-        z: 100
-        visible: false
-        opacity: 0
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.bottom: parent.bottom
-        anchors.margins: Theme.spacing
-        implicitHeight: 44
-        radius: Theme.radiusSmall
-        color: Theme.dangerMuted
-        border.width: 1
-        border.color: Theme.danger
-
-        Behavior on opacity { NumberAnimation { duration: Theme.animBase } }
-        onOpacityChanged: if (opacity === 0) visible = false
-
-        Timer {
-            id: hideTimer
-            interval: 4000
-            onTriggered: errorBanner.opacity = 0
-        }
-
-        RowLayout {
-            anchors.fill: parent
-            anchors.leftMargin: Theme.spacing
-            anchors.rightMargin: Theme.spacingS
-            spacing: Theme.spacingS
-            Text {
-                Layout.fillWidth: true
-                text: errorBanner.text
-                color: Theme.danger
-                font.pixelSize: TypeScale.caption
-                elide: Text.ElideRight
-                wrapMode: Text.WordWrap
-                maximumLineCount: 2
-            }
-            AppButton {
-                text: "✕"
-                variant: "secondary"
-                Layout.preferredWidth: 32
-                implicitHeight: 30
-                onClicked: errorBanner.opacity = 0
-            }
-        }
+    // ------------------------------------------------------------------
+    // Действия, которые вызывают страницы
+    // ------------------------------------------------------------------
+    function toast(text, isError) {
+        toastItem.text = text
+        toastItem.isError = isError
+        toastItem.show()
     }
 
-    header: Rectangle {
-        implicitHeight: headerColumn.implicitHeight + 2 * Theme.spacingS
-        color: Theme.surface
+    function addProgram() { fileDialog.open() }
+    function exportConfig() { exportDialog.open() }
+    function importConfig() { importDialog.open() }
 
-        ColumnLayout {
-            id: headerColumn
-            anchors.fill: parent
-            anchors.leftMargin: Theme.spacingL
-            anchors.rightMargin: Theme.spacingL
-            anchors.topMargin: Theme.spacingS
-            anchors.bottomMargin: Theme.spacingS
-            spacing: Theme.spacingS
-
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: Theme.spacing
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 0
-                    Text {
-                        text: qsTr("Programs")
-                        color: Theme.textPrimary
-                        font.pixelSize: TypeScale.h1
-                        font.weight: Font.Medium
-                    }
-                    Text {
-                        text: qsTr("%n item(s)", "", list.count)
-                        color: Theme.textMuted
-                        font.pixelSize: TypeScale.caption
-                    }
-                }
-
-                Item {
-                    id: autostartItem
-                    Layout.preferredWidth: autostartToggle.implicitWidth
-                    Layout.preferredHeight: 34
-                    visible: (typeof autostart !== 'undefined') && autostart.available
-
-                    property bool on: (typeof autostart !== 'undefined') && autostart.enabled
-
-                    Row {
-                        id: autostartToggle
-                        anchors.verticalCenter: parent.verticalCenter
-                        spacing: Theme.spacingS
-
-                        Rectangle {
-                            width: 20; height: 20
-                            radius: Theme.radiusSmall
-                            anchors.verticalCenter: parent.verticalCenter
-                            color: autostartItem.on ? Theme.interactive : Theme.surfaceElevated
-                            border.width: 1
-                            border.color: autostartItem.on ? Theme.interactive : Theme.outline
-                            Behavior on color { ColorAnimation { duration: Theme.animFast } }
-
-                            Text {
-                                anchors.centerIn: parent
-                                text: "✓"
-                                visible: autostartItem.on
-                                color: Theme.textOnAccent
-                                font.pixelSize: 13
-                            }
-                        }
-                        Text {
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: qsTr("Start with Windows")
-                            color: Theme.textMuted
-                            font.pixelSize: TypeScale.caption
-                        }
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: {
-                            if (typeof autostart !== 'undefined')
-                                autostart.setEnabled(!autostart.enabled)
-                        }
-                    }
-                }
-            }
-
-            Flow {
-                Layout.fillWidth: true
-                spacing: Theme.spacingS
-
-                AppButton {
-                    text: qsTr("Settings")
-                    variant: "secondary"
-                    onClicked: {
-                        settingsDelay.text = processModel.launchDelayMs().toString()
-                        settingsPoll.text = processModel.pollInterval().toString()
-                        settingsDialog.open()
-                    }
-                }
-                AppButton {
-                    text: qsTr("Log")
-                    variant: "secondary"
-                    onClicked: logDialog.open()
-                }
-                AppButton {
-                    text: qsTr("Schedule")
-                    variant: "secondary"
-                    onClicked: scheduleDialog.open()
-                }
-                AppButton {
-                    text: qsTr("Startup")
-                    variant: "secondary"
-                    visible: startupModel.available()
-                    onClicked: {
-                        startupModel.refresh()
-                        startupDialog.open()
-                    }
-                }
-                AppButton {
-                    text: qsTr("Stop all")
-                    variant: "secondary"
-                    onClicked: processModel.stopAll()
-                }
-                AppButton {
-                    text: qsTr("+ Add")
-                    variant: "primary"
-                    onClicked: fileDialog.open()
-                }
-            }
-
-            TextField {
-                id: searchField
-                Layout.fillWidth: true
-                Layout.preferredHeight: 34
-                placeholderText: qsTr("Search programs…")
-                color: Theme.textPrimary
-                placeholderTextColor: Theme.textMuted
-                font.pixelSize: TypeScale.base
-                selectByMouse: true
-                onTextChanged: filteredModel.setSearchText(text)
-                background: Rectangle {
-                    radius: Theme.radiusSmall
-                    color: Theme.surfaceElevated
-                    border.width: 1
-                    border.color: searchField.activeFocus ? Theme.interactive
-                                                          : Theme.outline
-                    Behavior on border.color {
-                        ColorAnimation { duration: Theme.animFast }
-                    }
-                }
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: Theme.spacingS
-
-                Flickable {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 34
-                    contentWidth: tabsRow.width
-                    clip: true
-                    flickableDirection: Flickable.HorizontalFlick
-
-                    Row {
-                        id: tabsRow
-                        height: 34
-                        spacing: Theme.spacingS
-
-                        Repeater {
-                            model: window.profileList
-
-                            Rectangle {
-                                required property string modelData
-                                property string pColor: (window.styleVersion, processModel.profileColor(modelData))
-                                property string pIcon: (window.styleVersion, processModel.profileIcon(modelData))
-                                property bool isActive: modelData === window.activeProfile
-                                height: 34
-                                width: tabRow.width + 2 * Theme.spacing
-                                radius: Theme.radiusSmall
-                                color: isActive
-                                       ? window.safeColor(pColor, Theme.interactive)
-                                       : Theme.surfaceElevated
-                                border.width: 1
-                                border.color: isActive
-                                              ? window.safeColor(pColor, Theme.interactive)
-                                              : window.safeColor(pColor, Theme.outline)
-
-                                Row {
-                                    id: tabRow
-                                    anchors.centerIn: parent
-                                    spacing: 5
-                                    Text {
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        visible: parent.parent.pIcon.length > 0
-                                        text: parent.parent.pIcon
-                                        font.pixelSize: TypeScale.base
-                                    }
-                                    Text {
-                                        id: tabLabel
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        text: parent.parent.modelData
-                                        color: parent.parent.isActive
-                                               ? Theme.textOnAccent : Theme.textPrimary
-                                        font.pixelSize: TypeScale.base
-                                    }
-                                }
-
-                                MouseArea {
-                                    anchors.fill: parent
-                                    onClicked: window.activeProfile = parent.modelData
-                                }
-                            }
-                        }
-                    }
-                }
-
-                AppButton {
-                    text: "+"
-                    variant: "secondary"
-                    Layout.preferredWidth: 34
-                    onClicked: {
-                        newProfileField.text = ""
-                        newProfileDialog.open()
-                    }
-                }
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: Theme.spacingS
-
-                AppButton {
-                    text: qsTr("Start all")
-                    variant: "primary"
-                    Layout.preferredWidth: 90
-                    onClicked: { processModel.startProfile(window.activeProfile); window.refreshCounts() }
-                }
-                AppButton {
-                    text: qsTr("Stop all")
-                    variant: "secondary"
-                    Layout.preferredWidth: 90
-                    onClicked: { processModel.stopProfile(window.activeProfile); window.refreshCounts() }
-                }
-                Text {
-                    Layout.leftMargin: Theme.spacingS
-                    text: qsTr("%1 / %2 running").arg(window.profileRunning).arg(window.profileTotal)
-                    color: window.profileRunning > 0 ? Theme.running : Theme.textMuted
-                    font.pixelSize: TypeScale.caption
-                }
-                Item { Layout.fillWidth: true }
-                AppButton {
-                    text: qsTr("Style")
-                    variant: "secondary"
-                    Layout.preferredWidth: 66
-                    onClicked: {
-                        styleDialog.targetProfile = window.activeProfile
-                        styleDialog.selectedColor = processModel.profileColor(window.activeProfile)
-                        styleDialog.selectedIcon = processModel.profileIcon(window.activeProfile)
-                        styleDialog.open()
-                    }
-                }
-                AppButton {
-                    text: qsTr("Hotkey")
-                    variant: "secondary"
-                    Layout.preferredWidth: 74
-                    onClicked: {
-                        profileBindDialog.targetProfile = window.activeProfile
-                        profileBindDialog.captured = processModel.profileBind(window.activeProfile)
-                        profileBindDialog.open()
-                    }
-                }
-                AppButton {
-                    text: qsTr("Delete")
-                    variant: "danger"
-                    Layout.preferredWidth: 74
-                    enabled: window.profileList.length > 1
-                    onClicked: processModel.removeProfile(window.activeProfile)
-                }
-            }
-        }
+    function confirm(title, text, acceptText, destructive, callback) {
+        confirmDialog.title = title
+        confirmDialog.message = text
+        confirmDialog.acceptText = acceptText
+        confirmDialog.destructive = destructive
+        confirmDialog.callback = callback
+        confirmDialog.open()
     }
 
-    ListView {
-        id: list
+    function askText(title, description, placeholder, value, acceptText, callback) {
+        textDialog.title = title
+        textDialog.description = description
+        textDialog.placeholder = placeholder
+        textDialog.initialValue = value
+        textDialog.acceptText = acceptText
+        textDialog.callback = callback
+        textDialog.open()
+    }
+
+    function editBind(id, bind, name) {
+        hotkeyDialog.title = qsTr("Hotkey for %1").arg(name)
+        hotkeyDialog.description = qsTr("Pressing it starts this program.")
+        hotkeyDialog.captured = bind
+        hotkeyDialog.callback = function(b) { processModel.setBind(id, b) }
+        hotkeyDialog.open()
+    }
+
+    function editProfileBind(name) {
+        hotkeyDialog.title = qsTr("Hotkey for “%1”").arg(name)
+        hotkeyDialog.description = qsTr("Pressing it starts every program in this profile.")
+        hotkeyDialog.captured = processModel.profileBind(name)
+        hotkeyDialog.callback = function(b) { processModel.setProfileBind(name, b) }
+        hotkeyDialog.open()
+    }
+
+    function editArgs(id, args) {
+        askText(qsTr("Launch arguments"),
+                qsTr("Passed to the program on its command line every time it starts."),
+                qsTr("--fullscreen --profile dev"), args, qsTr("Save"),
+                function(t) { processModel.setArgs(id, t) })
+    }
+
+    function editNote(id, note) {
+        askText(qsTr("Note"),
+                qsTr("Shown under the program name in the list."),
+                qsTr("Start after the VPN is up"), note, qsTr("Save"),
+                function(t) { processModel.setNote(id, t) })
+    }
+
+    function moveProgram(id, currentProfile) {
+        moveDialog.targetId = id
+        moveDialog.currentProfile = currentProfile
+        moveDialog.open()
+    }
+
+    function confirmRemoveProgram(id, name) {
+        confirm(qsTr("Remove %1 from the list?").arg(name),
+                qsTr("Its hotkey, arguments and note are forgotten. The program itself stays on your computer."),
+                qsTr("Remove"), true,
+                function() { processModel.removeProgram(id); window.refreshCounts() })
+    }
+
+    function newProfile() {
+        askText(qsTr("New profile"),
+                qsTr("A profile is a group of programs you start together."),
+                qsTr("Work, Games, Streaming"), "", qsTr("Create profile"),
+                function(t) {
+                    var name = t.trim()
+                    if (name.length === 0)
+                        return
+                    if (window.profileList.indexOf(name) >= 0) {
+                        window.toast(qsTr("A profile named “%1” already exists").arg(name), true)
+                    } else {
+                        processModel.addProfile(name)
+                    }
+                    window.showProfile(name)
+                })
+    }
+
+    function renameProfile(name) {
+        askText(qsTr("Rename profile"), "", "", name, qsTr("Rename"),
+                function(t) {
+                    var n = t.trim()
+                    if (n.length === 0 || n === name)
+                        return
+                    if (window.profileList.indexOf(n) >= 0) {
+                        window.toast(qsTr("A profile named “%1” already exists").arg(n), true)
+                        return
+                    }
+                    var wasActive = window.activeProfile === name
+                    // Заранее переключаемся на новое имя, чтобы список не
+                    // «прыгнул» на первый профиль, когда старое имя исчезнет.
+                    processModel.renameProfile(name, n)
+                    if (wasActive)
+                        window.activeProfile = n
+                })
+    }
+
+    function styleProfile(name) {
+        styleDialog.targetProfile = name
+        styleDialog.selectedColor = processModel.profileColor(name)
+        styleDialog.selectedIcon = processModel.profileIcon(name)
+        styleDialog.open()
+    }
+
+    function confirmDeleteProfile(name) {
+        var fallback = profileList[0] === name ? profileList[1] : profileList[0]
+        confirm(qsTr("Delete the profile “%1”?").arg(name),
+                qsTr("Its programs are not removed — they move to “%1”.").arg(fallback),
+                qsTr("Delete profile"), true,
+                function() { processModel.removeProfile(name) })
+    }
+
+    function showProfileMenu(name, anchorItem, alignRight) {
+        profileMenu.target = name
+        if (anchorItem && alignRight)
+            profileMenu.popup(anchorItem, anchorItem.width - profileMenu.implicitWidth,
+                              anchorItem.height + 4)
+        else if (anchorItem)
+            profileMenu.popup(anchorItem, 0, anchorItem.height + 4)
+        else
+            profileMenu.popup()
+    }
+
+    // ------------------------------------------------------------------
+    // Окно: боковая панель и страницы
+    // ------------------------------------------------------------------
+    RowLayout {
         anchors.fill: parent
-        anchors.topMargin: Theme.spacingS
-        clip: true
-        model: filteredModel
         spacing: 0
-        reuseItems: true
 
-        delegate: ProcessRow {
-            onStartRequested: (id) => { processModel.start(id); window.refreshCounts() }
-            onStopRequested: (id) => { processModel.stop(id); window.refreshCounts() }
-            onRemoveRequested: (id) => {
-                confirmDeleteDialog.targetId = id
-                confirmDeleteDialog.open()
+        Rectangle {
+            Layout.fillHeight: true
+            Layout.preferredWidth: 224
+            color: Theme.sidebar
+
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: Theme.spaceS
+                anchors.topMargin: Theme.spaceL
+                spacing: 2
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.bottomMargin: Theme.spaceXS
+                    Text {
+                        Layout.fillWidth: true
+                        Layout.leftMargin: Theme.spaceM
+                        text: qsTr("Profiles")
+                        color: Theme.textFaint
+                        font.pixelSize: TypeScale.caption
+                        font.weight: Font.DemiBold
+                    }
+                    IconButton {
+                        kind: "plus"
+                        hint: qsTr("New profile")
+                        implicitWidth: 26
+                        implicitHeight: 26
+                        onClicked: window.newProfile()
+                    }
+                }
+
+                ListView {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    clip: true
+                    spacing: 2
+                    model: window.profileList
+                    boundsBehavior: Flickable.StopAtBounds
+
+                    delegate: SidebarItem {
+                        id: profileItem
+                        required property string modelData
+                        readonly property int running:
+                            (window.countsVersion, processModel.profileRunningCount(modelData))
+                        readonly property int total:
+                            (window.countsVersion, processModel.profileTotalCount(modelData))
+                        readonly property string customColor:
+                            (window.styleVersion, processModel.profileColor(modelData))
+
+                        width: ListView.view ? ListView.view.width : 0
+                        text: modelData
+                        selected: window.page === "programs" && window.activeProfile === modelData
+                        showMarker: true
+                        emoji: (window.styleVersion, processModel.profileIcon(modelData))
+                        markerColor: customColor.length > 0 ? customColor : Theme.lineStrong
+                        badge: running > 0 ? running + "/" + total : (total > 0 ? total : "")
+                        badgeActive: running > 0
+                        onClicked: window.showProfile(modelData)
+                        onContextRequested: window.showProfileMenu(modelData, profileItem)
+                    }
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.leftMargin: Theme.spaceS
+                    Layout.rightMargin: Theme.spaceS
+                    Layout.topMargin: Theme.spaceS
+                    Layout.bottomMargin: Theme.spaceS
+                    implicitHeight: 1
+                    color: Theme.line
+                }
+
+                SidebarItem {
+                    Layout.fillWidth: true
+                    text: qsTr("Schedule")
+                    selected: window.page === "schedule"
+                    onClicked: window.page = "schedule"
+                }
+                SidebarItem {
+                    Layout.fillWidth: true
+                    visible: startupModel.available()
+                    text: qsTr("Startup")
+                    selected: window.page === "startup"
+                    onClicked: window.page = "startup"
+                }
+                SidebarItem {
+                    Layout.fillWidth: true
+                    text: qsTr("Log")
+                    selected: window.page === "log"
+                    onClicked: window.page = "log"
+                }
+                SidebarItem {
+                    Layout.fillWidth: true
+                    text: qsTr("Settings")
+                    selected: window.page === "settings"
+                    onClicked: window.page = "settings"
+                }
             }
-            onActivated: (id, running) => {
-                if (!running) { processModel.start(id); window.refreshCounts() }
-            }
-            onRestartRequested: (id) => { processModel.restart(id); window.refreshCounts() }
-            onToggleWatchRequested: (id, on) => processModel.setWatch(id, on)
-            onEditNoteRequested: (id, currentNote) => {
-                noteDialog.targetId = id
-                noteField.text = currentNote
-                noteDialog.open()
-            }
-            onOpenFolderRequested: (path) => processModel.openFileLocation(path)
-            onCopyPathRequested: (path) => processModel.copyPath(path)
-            onEditBindRequested: (id, currentBind) => {
-                bindDialog.targetId = id
-                bindDialog.captured = currentBind
-                bindDialog.open()
-            }
-            onEditArgsRequested: (id, currentArgs) => {
-                argsDialog.targetId = id
-                argsField.text = currentArgs
-                argsDialog.open()
-            }
-            onMoveRequested: (id, currentProfile) => {
-                moveDialog.targetId = id
-                moveDialog.currentProfile = currentProfile
-                moveDialog.open()
+
+            Rectangle {
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                width: 1
+                color: Theme.line
             }
         }
 
         Item {
-            anchors.centerIn: parent
-            width: parent.width - 2 * Theme.spacingL
-            visible: list.count === 0
+            Layout.fillWidth: true
+            Layout.fillHeight: true
 
-            ColumnLayout {
-                anchors.centerIn: parent
-                spacing: Theme.spacing
-                Text {
-                    Layout.alignment: Qt.AlignHCenter
-                    text: qsTr("No programs yet")
-                    color: Theme.textPrimary
-                    font.pixelSize: TypeScale.h2
+            StackLayout {
+                anchors.fill: parent
+                currentIndex: window.pages.indexOf(window.page)
+
+                ProgramsPage { app: window }
+                SchedulePage { app: window }
+                StartupPage  { app: window }
+                LogPage      { app: window }
+                SettingsPage { app: window }
+            }
+
+            // Короткое сообщение внизу: ошибки и подтверждения.
+            Rectangle {
+                id: toastItem
+                property string text: ""
+                property bool isError: false
+                function show() { opacity = 1; toastTimer.restart() }
+
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.bottom: parent.bottom
+                anchors.bottomMargin: Theme.spaceL
+                width: Math.min(toastLabel.implicitWidth + 2 * Theme.spaceL,
+                                parent.width - 2 * Theme.spaceXL)
+                height: Math.max(36, toastLabel.height + Theme.spaceL)
+                radius: Theme.radius
+                color: isError ? Theme.dangerSoft : Theme.raised
+                border.width: 1
+                border.color: isError ? Theme.danger : Theme.lineStrong
+                opacity: 0
+                visible: opacity > 0
+                Behavior on opacity { NumberAnimation { duration: Theme.animBase } }
+
+                Timer {
+                    id: toastTimer
+                    interval: 4000
+                    onTriggered: toastItem.opacity = 0
                 }
                 Text {
-                    Layout.alignment: Qt.AlignHCenter
-                    Layout.maximumWidth: 320
-                    horizontalAlignment: Text.AlignHCenter
+                    id: toastLabel
+                    anchors.centerIn: parent
+                    width: Math.min(implicitWidth, toastItem.parent.width - 4 * Theme.spaceXL)
+                    text: toastItem.text
+                    color: toastItem.isError ? Theme.danger : Theme.text
+                    font.pixelSize: TypeScale.body
                     wrapMode: Text.WordWrap
-                    text: qsTr("Add an executable to launch and stop it with one click.")
-                    color: Theme.textMuted
-                    font.pixelSize: TypeScale.base
+                    horizontalAlignment: Text.AlignHCenter
                 }
-                AppButton {
-                    Layout.alignment: Qt.AlignHCenter
-                    text: qsTr("+ Add program")
-                    variant: "primary"
-                    onClicked: fileDialog.open()
-                }
+                TapHandler { onTapped: toastItem.opacity = 0 }
             }
         }
     }
 
-    DropArea {
-        id: dropArea
-        anchors.fill: parent
-        keys: ["text/uri-list"]
+    // ------------------------------------------------------------------
+    // Меню профиля
+    // ------------------------------------------------------------------
+    AppMenu {
+        id: profileMenu
+        property string target: ""
 
-        onDropped: (drop) => {
-            if (drop.hasUrls) {
-                for (var i = 0; i < drop.urls.length; i++)
-                    processModel.addProgramFromUrl(drop.urls[i], window.activeProfile)
-                drop.accept()
-            }
+        AppMenuItem {
+            text: qsTr("Rename…")
+            onTriggered: window.renameProfile(profileMenu.target)
         }
+        AppMenuItem {
+            text: qsTr("Color and icon…")
+            onTriggered: window.styleProfile(profileMenu.target)
+        }
+        AppMenuItem {
+            text: qsTr("Hotkey…")
+            trailingText: (window.styleVersion, processModel.profileBind(profileMenu.target))
+            onTriggered: window.editProfileBind(profileMenu.target)
+        }
+        AppMenuSeparator { }
+        AppMenuItem {
+            text: qsTr("Stop programs in all profiles")
+            onTriggered: { processModel.stopAll(); window.refreshCounts() }
+        }
+        AppMenuSeparator { }
+        AppMenuItem {
+            text: qsTr("Delete profile")
+            danger: true
+            enabled: window.profileList.length > 1
+            onTriggered: window.confirmDeleteProfile(profileMenu.target)
+        }
+    }
 
-        Rectangle {
-            anchors.fill: parent
-            visible: dropArea.containsDrag
-            color: Qt.rgba(0.36, 0.55, 1.0, 0.12)
-            border.width: 2
-            border.color: Theme.interactive
-            radius: Theme.radius
-            z: 200
-
-            Rectangle {
-                anchors.centerIn: parent
-                width: dropLabel.width + 2 * Theme.spacingL
-                height: dropLabel.height + 2 * Theme.spacing
-                radius: Theme.radius
-                color: Theme.surfaceElevated
-                border.width: 1
-                border.color: Theme.interactive
-
-                Text {
-                    id: dropLabel
-                    anchors.centerIn: parent
-                    text: qsTr("Drop programs to add them to \"%1\"").arg(window.activeProfile)
-                    color: Theme.textPrimary
-                    font.pixelSize: TypeScale.h2
-                }
-            }
+    // ------------------------------------------------------------------
+    // Системные диалоги выбора файлов
+    // ------------------------------------------------------------------
+    FileDialog {
+        id: fileDialog
+        title: qsTr("Choose a program")
+        nameFilters: Qt.platform.os === "windows"
+                     ? [qsTr("Programs and shortcuts (*.exe *.lnk *.url)"),
+                        qsTr("Executables (*.exe)"),
+                        qsTr("Shortcuts (*.lnk *.url)"),
+                        qsTr("All files (*)")]
+                     : [qsTr("All files (*)")]
+        onAccepted: {
+            processModel.addProgramFromUrl(selectedFile, window.activeProfile)
+            window.refreshCounts()
         }
     }
 
@@ -581,11 +501,10 @@ ApplicationWindow {
         nameFilters: [qsTr("Config files (*.json)")]
         defaultSuffix: "json"
         onAccepted: {
-            if (!processModel.exportConfig(selectedFile))
-                errorBanner.text = qsTr("Export failed")
+            if (processModel.exportConfig(selectedFile))
+                window.toast(qsTr("Configuration exported"), false)
             else
-                errorBanner.text = qsTr("Configuration exported")
-            errorBanner.show()
+                window.toast(qsTr("Could not write the file. Check that the folder is writable."), true)
         }
     }
 
@@ -595,701 +514,99 @@ ApplicationWindow {
         fileMode: FileDialog.OpenFile
         nameFilters: [qsTr("Config files (*.json)")]
         onAccepted: {
-            if (!processModel.importConfig(selectedFile)) {
-                errorBanner.text = qsTr("Import failed — invalid file")
-                errorBanner.show()
-            } else {
-                settingsDialog.close()
+            if (processModel.importConfig(selectedFile)) {
                 window.refreshProfiles()
                 window.refreshCounts()
+                window.toast(qsTr("Configuration imported"), false)
+            } else {
+                window.toast(qsTr("This file is not a Process Launcher configuration. Nothing was changed."), true)
             }
         }
     }
 
-    FileDialog {
-        id: fileDialog
-        title: qsTr("Choose a program")
-        nameFilters: Qt.platform.os === "windows"
-                     ? [qsTr("Programs and shortcuts (*.exe *.lnk *.url)"),
-                        qsTr("Executables (*.exe)"),
-                        qsTr("Shortcuts (*.lnk *.url)"),
-                        qsTr("All files (*)")]
-                     : [qsTr("All files (*)")]
-        onAccepted: processModel.addProgramFromUrl(selectedFile, window.activeProfile)
+    // ------------------------------------------------------------------
+    // Диалоги
+    // ------------------------------------------------------------------
+    HotkeyDialog {
+        id: hotkeyDialog
+        property var callback: null
+        onSaved: (bind) => { if (callback) callback(bind) }
     }
 
-    Dialog {
-        id: bindDialog
-        property string targetId: ""
-        property string captured: ""
+    AppDialog {
+        id: textDialog
+        property string description: ""
+        property string placeholder: ""
+        property string initialValue: ""
+        property var callback: null
 
-        title: qsTr("Set hotkey")
-        header: Rectangle {
-            color: Theme.surfaceElevated
-            implicitHeight: hdrLabel_626.implicitHeight + 2 * Theme.spacing
-            radius: Theme.radius
-            Rectangle {
-                anchors.bottom: parent.bottom
-                width: parent.width
-                height: parent.radius
-                color: Theme.surfaceElevated
-            }
-            Text {
-                id: hdrLabel_626
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.left: parent.left
-                anchors.leftMargin: Theme.spacingL
-                text: bindDialog.title
-                color: Theme.textPrimary
-                font.pixelSize: TypeScale.h2
-                font.weight: Font.Medium
-            }
+        onOpened: {
+            textDialogField.text = initialValue
+            textDialogField.forceActiveFocus()
+            textDialogField.selectAll()
         }
-        anchors.centerIn: Overlay.overlay
-        width: Math.min(360, window.width - 2 * Theme.spacingL)
-        modal: true
-        standardButtons: Dialog.Ok | Dialog.Cancel | Dialog.Reset
-
-        onOpened: captureArea.forceActiveFocus()
-        onAccepted: processModel.setBind(targetId, captured)
-        onReset: {
-            captured = ""
-            processModel.setBind(targetId, "")
-        }
-
-        function isModifierKey(k) {
-            return k === Qt.Key_Control || k === Qt.Key_Shift
-                || k === Qt.Key_Alt || k === Qt.Key_Meta
-                || k === Qt.Key_AltGr
-        }
-
-        function toBindString(key, mods) {
-            var name = ""
-            var shiftPairs = {
-                "!":"1","@":"2","#":"3","$":"4","%":"5",
-                "^":"6","&":"7","*":"8","(":"9",")":"0"
-            }
-            if (key >= Qt.Key_0 && key <= Qt.Key_9)
-                name = String.fromCharCode("0".charCodeAt(0) + (key - Qt.Key_0))
-            else if (key >= Qt.Key_A && key <= Qt.Key_Z)
-                name = String.fromCharCode("A".charCodeAt(0) + (key - Qt.Key_A))
-            else if (key >= Qt.Key_F1 && key <= Qt.Key_F24)
-                name = "F" + (key - Qt.Key_F1 + 1)
-            else if (shiftPairs[String.fromCharCode(key)] !== undefined)
-                name = shiftPairs[String.fromCharCode(key)]
-            else
-                return ""
-
-            var parts = []
-            if (mods & Qt.ControlModifier) parts.push("Ctrl")
-            if (mods & Qt.AltModifier)     parts.push("Alt")
-            if (mods & Qt.ShiftModifier)   parts.push("Shift")
-            if (mods & Qt.MetaModifier)    parts.push("Win")
-            parts.push(name)
-            return parts.join("+")
-        }
-
-        background: Rectangle {
-            color: Theme.surfaceElevated
-            radius: Theme.radius
-            border.width: 1
-            border.color: Theme.outline
-        }
+        onAccepted: if (callback) callback(textDialogField.text)
 
         contentItem: ColumnLayout {
-            spacing: Theme.spacingS
+            spacing: Theme.spaceM
             Text {
-                text: qsTr("Press a key or combination to launch this program.")
-                color: Theme.textMuted
-                font.pixelSize: TypeScale.caption
                 Layout.fillWidth: true
+                visible: textDialog.description.length > 0
+                text: textDialog.description
+                color: Theme.textMuted
+                font.pixelSize: TypeScale.body
                 wrapMode: Text.WordWrap
             }
-
-            Rectangle {
-                id: captureArea
+            AppTextField {
+                id: textDialogField
                 Layout.fillWidth: true
-                Layout.preferredHeight: 44
-                radius: Theme.radiusSmall
-                color: Theme.surface
-                border.width: 1
-                border.color: activeFocus ? Theme.interactive : Theme.outline
-                focus: true
-                activeFocusOnTab: true
-                Keys.enabled: true
-
-                Behavior on border.color {
-                    ColorAnimation { duration: Theme.animFast }
-                }
-
-                MouseArea {
-                    anchors.fill: parent
-                    onClicked: captureArea.forceActiveFocus()
-                }
-
-                Keys.onShortcutOverride: (event) => {
-                    event.accepted = true
-                }
-
-                Keys.onPressed: (event) => {
-                    if (bindDialog.isModifierKey(event.key)) {
-                        event.accepted = true
-                        return
-                    }
-                    var s = bindDialog.toBindString(event.key, event.modifiers)
-                    if (s.length > 0)
-                        bindDialog.captured = s
-                    event.accepted = true
-                }
-
-                Text {
-                    anchors.centerIn: parent
-                    text: bindDialog.captured.length > 0
-                          ? bindDialog.captured
-                          : qsTr("Press keys…")
-                    color: bindDialog.captured.length > 0
-                           ? Theme.textPrimary : Theme.textMuted
-                    font.pixelSize: TypeScale.h2
-                }
-            }
-
-            Text {
-                text: qsTr("Allowed: letters, digits, F1–F24, alone or with Ctrl/Alt/Shift.")
-                color: Theme.textMuted
-                font.pixelSize: TypeScale.caption
-                Layout.fillWidth: true
-                wrapMode: Text.WordWrap
+                placeholderText: textDialog.placeholder
+                onAccepted: textDialog.accept()
             }
         }
     }
 
-    Dialog {
-        id: argsDialog
-        property string targetId: ""
+    AppDialog {
+        id: confirmDialog
+        property string message: ""
+        property var callback: null
 
-        title: qsTr("Launch arguments")
-        header: Rectangle {
-            color: Theme.surfaceElevated
-            implicitHeight: hdrLabel_749.implicitHeight + 2 * Theme.spacing
-            radius: Theme.radius
-            Rectangle {
-                anchors.bottom: parent.bottom
-                width: parent.width
-                height: parent.radius
-                color: Theme.surfaceElevated
-            }
-            Text {
-                id: hdrLabel_749
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.left: parent.left
-                anchors.leftMargin: Theme.spacingL
-                text: argsDialog.title
-                color: Theme.textPrimary
-                font.pixelSize: TypeScale.h2
-                font.weight: Font.Medium
-            }
-        }
-        anchors.centerIn: Overlay.overlay
-        width: Math.min(380, window.width - 2 * Theme.spacingL)
-        modal: true
-        standardButtons: Dialog.Ok | Dialog.Cancel
+        preferredWidth: 420
+        onAccepted: if (callback) callback()
 
-        onOpened: argsField.forceActiveFocus()
-        onAccepted: processModel.setArgs(targetId, argsField.text)
-
-        background: Rectangle {
-            color: Theme.surfaceElevated
-            radius: Theme.radius
-            border.width: 1
-            border.color: Theme.outline
-        }
-
-        contentItem: ColumnLayout {
-            spacing: Theme.spacingS
-            Text {
-                text: qsTr("Command-line arguments passed to the program.")
-                color: Theme.textMuted
-                font.pixelSize: TypeScale.caption
-                Layout.fillWidth: true
-                wrapMode: Text.WordWrap
-            }
-            TextField {
-                id: argsField
-                Layout.fillWidth: true
-                placeholderText: qsTr("e.g. --fullscreen --profile dev")
-                color: Theme.textPrimary
-                placeholderTextColor: Theme.textMuted
-                font.pixelSize: TypeScale.base
-                selectByMouse: true
-                onAccepted: argsDialog.accept()
-                background: Rectangle {
-                    radius: Theme.radiusSmall
-                    color: Theme.surface
-                    border.width: 1
-                    border.color: argsField.activeFocus ? Theme.interactive
-                                                        : Theme.outline
-                    Behavior on border.color {
-                        ColorAnimation { duration: Theme.animFast }
-                    }
-                }
-            }
+        contentItem: Text {
+            text: confirmDialog.message
+            color: Theme.textMuted
+            font.pixelSize: TypeScale.body
+            wrapMode: Text.WordWrap
         }
     }
 
-    Dialog {
-        id: noteDialog
-        property string targetId: ""
-
-        title: qsTr("Note")
-        header: Rectangle {
-            color: Theme.surfaceElevated
-            implicitHeight: hdrLabel_801.implicitHeight + 2 * Theme.spacing
-            radius: Theme.radius
-            Rectangle {
-                anchors.bottom: parent.bottom
-                width: parent.width
-                height: parent.radius
-                color: Theme.surfaceElevated
-            }
-            Text {
-                id: hdrLabel_801
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.left: parent.left
-                anchors.leftMargin: Theme.spacingL
-                text: noteDialog.title
-                color: Theme.textPrimary
-                font.pixelSize: TypeScale.h2
-                font.weight: Font.Medium
-            }
-        }
-        anchors.centerIn: Overlay.overlay
-        width: Math.min(380, window.width - 2 * Theme.spacingL)
-        modal: true
-        standardButtons: Dialog.Ok | Dialog.Cancel
-
-        onOpened: noteField.forceActiveFocus()
-        onAccepted: processModel.setNote(targetId, noteField.text)
-
-        background: Rectangle {
-            color: Theme.surfaceElevated
-            radius: Theme.radius
-            border.width: 1
-            border.color: Theme.outline
-        }
-
-        contentItem: ColumnLayout {
-            spacing: Theme.spacingS
-            Text {
-                text: qsTr("A short note for this program.")
-                color: Theme.textMuted
-                font.pixelSize: TypeScale.caption
-                Layout.fillWidth: true
-                wrapMode: Text.WordWrap
-            }
-            TextField {
-                id: noteField
-                Layout.fillWidth: true
-                placeholderText: qsTr("e.g. start after VPN")
-                color: Theme.textPrimary
-                placeholderTextColor: Theme.textMuted
-                font.pixelSize: TypeScale.base
-                selectByMouse: true
-                onAccepted: noteDialog.accept()
-                background: Rectangle {
-                    radius: Theme.radiusSmall
-                    color: Theme.surface
-                    border.width: 1
-                    border.color: noteField.activeFocus ? Theme.interactive
-                                                        : Theme.outline
-                    Behavior on border.color {
-                        ColorAnimation { duration: Theme.animFast }
-                    }
-                }
-            }
-        }
-    }
-
-    Dialog {
-        id: newProfileDialog
-        title: qsTr("New profile")
-        header: Rectangle {
-            color: Theme.surfaceElevated
-            implicitHeight: hdrLabel_851.implicitHeight + 2 * Theme.spacing
-            radius: Theme.radius
-            Rectangle {
-                anchors.bottom: parent.bottom
-                width: parent.width
-                height: parent.radius
-                color: Theme.surfaceElevated
-            }
-            Text {
-                id: hdrLabel_851
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.left: parent.left
-                anchors.leftMargin: Theme.spacingL
-                text: newProfileDialog.title
-                color: Theme.textPrimary
-                font.pixelSize: TypeScale.h2
-                font.weight: Font.Medium
-            }
-        }
-        anchors.centerIn: Overlay.overlay
-        width: Math.min(340, window.width - 2 * Theme.spacingL)
-        modal: true
-        standardButtons: Dialog.Ok | Dialog.Cancel
-
-        onOpened: newProfileField.forceActiveFocus()
-        onAccepted: {
-            var name = newProfileField.text.trim()
-            if (name.length > 0) {
-                processModel.addProfile(name)
-                window.activeProfile = name
-            }
-        }
-
-        background: Rectangle {
-            color: Theme.surfaceElevated
-            radius: Theme.radius
-            border.width: 1
-            border.color: Theme.outline
-        }
-
-        contentItem: ColumnLayout {
-            spacing: Theme.spacingS
-            Text {
-                text: qsTr("Name for the new profile.")
-                color: Theme.textMuted
-                font.pixelSize: TypeScale.caption
-                Layout.fillWidth: true
-            }
-            TextField {
-                id: newProfileField
-                Layout.fillWidth: true
-                placeholderText: qsTr("e.g. Games, Work, Streaming")
-                color: Theme.textPrimary
-                placeholderTextColor: Theme.textMuted
-                font.pixelSize: TypeScale.base
-                selectByMouse: true
-                onAccepted: newProfileDialog.accept()
-                background: Rectangle {
-                    radius: Theme.radiusSmall
-                    color: Theme.surface
-                    border.width: 1
-                    border.color: newProfileField.activeFocus ? Theme.interactive
-                                                              : Theme.outline
-                    Behavior on border.color {
-                        ColorAnimation { duration: Theme.animFast }
-                    }
-                }
-            }
-        }
-    }
-
-    Dialog {
-        id: profileBindDialog
-        property string targetProfile: ""
-        property string captured: ""
-
-        title: qsTr("Profile hotkey")
-        header: Rectangle {
-            color: Theme.surfaceElevated
-            implicitHeight: hdrLabel_909.implicitHeight + 2 * Theme.spacing
-            radius: Theme.radius
-            Rectangle {
-                anchors.bottom: parent.bottom
-                width: parent.width
-                height: parent.radius
-                color: Theme.surfaceElevated
-            }
-            Text {
-                id: hdrLabel_909
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.left: parent.left
-                anchors.leftMargin: Theme.spacingL
-                text: profileBindDialog.title
-                color: Theme.textPrimary
-                font.pixelSize: TypeScale.h2
-                font.weight: Font.Medium
-            }
-        }
-        anchors.centerIn: Overlay.overlay
-        width: Math.min(360, window.width - 2 * Theme.spacingL)
-        modal: true
-        standardButtons: Dialog.Ok | Dialog.Cancel | Dialog.Reset
-
-        onOpened: profileCapture.forceActiveFocus()
-        onAccepted: processModel.setProfileBind(targetProfile, captured)
-        onReset: {
-            captured = ""
-            processModel.setProfileBind(targetProfile, "")
-        }
-
-        function isModifierKey(k) {
-            return k === Qt.Key_Control || k === Qt.Key_Shift
-                || k === Qt.Key_Alt || k === Qt.Key_Meta || k === Qt.Key_AltGr
-        }
-        function toBindString(key, mods) {
-            var name = ""
-            var shiftPairs = {
-                "!":"1","@":"2","#":"3","$":"4","%":"5",
-                "^":"6","&":"7","*":"8","(":"9",")":"0"
-            }
-            if (key >= Qt.Key_0 && key <= Qt.Key_9)
-                name = String.fromCharCode("0".charCodeAt(0) + (key - Qt.Key_0))
-            else if (key >= Qt.Key_A && key <= Qt.Key_Z)
-                name = String.fromCharCode("A".charCodeAt(0) + (key - Qt.Key_A))
-            else if (key >= Qt.Key_F1 && key <= Qt.Key_F24)
-                name = "F" + (key - Qt.Key_F1 + 1)
-            else if (shiftPairs[String.fromCharCode(key)] !== undefined)
-                name = shiftPairs[String.fromCharCode(key)]
-            else
-                return ""
-            var parts = []
-            if (mods & Qt.ControlModifier) parts.push("Ctrl")
-            if (mods & Qt.AltModifier)     parts.push("Alt")
-            if (mods & Qt.ShiftModifier)   parts.push("Shift")
-            if (mods & Qt.MetaModifier)    parts.push("Win")
-            parts.push(name)
-            return parts.join("+")
-        }
-
-        background: Rectangle {
-            color: Theme.surfaceElevated
-            radius: Theme.radius
-            border.width: 1
-            border.color: Theme.outline
-        }
-
-        contentItem: ColumnLayout {
-            spacing: Theme.spacingS
-            Text {
-                text: qsTr("Press a key or combination to launch this whole profile.")
-                color: Theme.textMuted
-                font.pixelSize: TypeScale.caption
-                Layout.fillWidth: true
-                wrapMode: Text.WordWrap
-            }
-            Rectangle {
-                id: profileCapture
-                Layout.fillWidth: true
-                Layout.preferredHeight: 44
-                radius: Theme.radiusSmall
-                color: Theme.surface
-                border.width: 1
-                border.color: activeFocus ? Theme.interactive : Theme.outline
-                focus: true
-                activeFocusOnTab: true
-
-                MouseArea {
-                    anchors.fill: parent
-                    onClicked: profileCapture.forceActiveFocus()
-                }
-                Keys.onShortcutOverride: (event) => { event.accepted = true }
-                Keys.onPressed: (event) => {
-                    if (profileBindDialog.isModifierKey(event.key)) {
-                        event.accepted = true
-                        return
-                    }
-                    var s = profileBindDialog.toBindString(event.key, event.modifiers)
-                    if (s.length > 0)
-                        profileBindDialog.captured = s
-                    event.accepted = true
-                }
-
-                Text {
-                    anchors.centerIn: parent
-                    text: profileBindDialog.captured.length > 0
-                          ? profileBindDialog.captured : qsTr("Press keys…")
-                    color: profileBindDialog.captured.length > 0
-                           ? Theme.textPrimary : Theme.textMuted
-                    font.pixelSize: TypeScale.h2
-                }
-            }
-        }
-    }
-
-    Dialog {
-        id: styleDialog
-        property string targetProfile: ""
-        property string selectedColor: ""
-        property string selectedIcon: ""
-
-        readonly property var palette: ["#5b8cff","#3ddc84","#ff6b6b","#ffb454",
-                                        "#c77dff","#4ecdc4","#f78fb3","#8b909b"]
-        readonly property var emojis: ["🎮","💼","🎧","🛠️","🌐","🎬","📊","🚀",
-                                       "🔥","⭐","🎯","📁"]
-
-        title: qsTr("Profile style")
-        header: Rectangle {
-            color: Theme.surfaceElevated
-            implicitHeight: hdrLabel_1017.implicitHeight + 2 * Theme.spacing
-            radius: Theme.radius
-            Rectangle {
-                anchors.bottom: parent.bottom
-                width: parent.width
-                height: parent.radius
-                color: Theme.surfaceElevated
-            }
-            Text {
-                id: hdrLabel_1017
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.left: parent.left
-                anchors.leftMargin: Theme.spacingL
-                text: styleDialog.title
-                color: Theme.textPrimary
-                font.pixelSize: TypeScale.h2
-                font.weight: Font.Medium
-            }
-        }
-        anchors.centerIn: Overlay.overlay
-        width: Math.min(360, window.width - 2 * Theme.spacingL)
-        modal: true
-        standardButtons: Dialog.Ok | Dialog.Cancel
-
-        onAccepted: {
-            processModel.setProfileColor(targetProfile, selectedColor)
-            processModel.setProfileIcon(targetProfile, selectedIcon)
-        }
-
-        background: Rectangle {
-            color: Theme.surfaceElevated
-            radius: Theme.radius
-            border.width: 1
-            border.color: Theme.outline
-        }
-
-        contentItem: ColumnLayout {
-            spacing: Theme.spacing
-
-            Text {
-                text: qsTr("Color")
-                color: Theme.textPrimary
-                font.pixelSize: TypeScale.base
-                Layout.fillWidth: true
-            }
-            Flow {
-                Layout.fillWidth: true
-                spacing: Theme.spacingS
-                Repeater {
-                    model: styleDialog.palette
-                    Rectangle {
-                        required property string modelData
-                        width: 32; height: 32; radius: 16
-                        color: modelData
-                        border.width: styleDialog.selectedColor === modelData ? 3 : 1
-                        border.color: styleDialog.selectedColor === modelData
-                                      ? Theme.textPrimary : Theme.outline
-                        MouseArea {
-                            anchors.fill: parent
-                            onClicked: styleDialog.selectedColor = parent.modelData
-                        }
-                    }
-                }
-            }
-
-            Text {
-                text: qsTr("Icon")
-                color: Theme.textPrimary
-                font.pixelSize: TypeScale.base
-                Layout.fillWidth: true
-            }
-            Flow {
-                Layout.fillWidth: true
-                spacing: Theme.spacingS
-                Repeater {
-                    model: styleDialog.emojis
-                    Rectangle {
-                        required property string modelData
-                        width: 36; height: 36; radius: Theme.radiusSmall
-                        color: styleDialog.selectedIcon === modelData
-                               ? Theme.interactive : Theme.surface
-                        border.width: 1
-                        border.color: styleDialog.selectedIcon === modelData
-                                      ? Theme.interactive : Theme.outline
-                        Text {
-                            anchors.centerIn: parent
-                            text: parent.modelData
-                            font.pixelSize: 18
-                        }
-                        MouseArea {
-                            anchors.fill: parent
-                            onClicked: styleDialog.selectedIcon =
-                                       (styleDialog.selectedIcon === parent.modelData
-                                        ? "" : parent.modelData)
-                        }
-                    }
-                }
-            }
-
-            AppButton {
-                text: qsTr("Clear style")
-                variant: "secondary"
-                Layout.fillWidth: true
-                onClicked: {
-                    styleDialog.selectedColor = ""
-                    styleDialog.selectedIcon = ""
-                }
-            }
-        }
-    }
-
-    Dialog {
+    AppDialog {
         id: moveDialog
         property string targetId: ""
         property string currentProfile: ""
 
         title: qsTr("Move to profile")
-        header: Rectangle {
-            color: Theme.surfaceElevated
-            implicitHeight: hdrLabel_1115.implicitHeight + 2 * Theme.spacing
-            radius: Theme.radius
-            Rectangle {
-                anchors.bottom: parent.bottom
-                width: parent.width
-                height: parent.radius
-                color: Theme.surfaceElevated
-            }
-            Text {
-                id: hdrLabel_1115
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.left: parent.left
-                anchors.leftMargin: Theme.spacingL
-                text: moveDialog.title
-                color: Theme.textPrimary
-                font.pixelSize: TypeScale.h2
-                font.weight: Font.Medium
-            }
-        }
-        anchors.centerIn: Overlay.overlay
-        width: Math.min(340, window.width - 2 * Theme.spacingL)
-        modal: true
-        standardButtons: Dialog.Cancel
-
-        background: Rectangle {
-            color: Theme.surfaceElevated
-            radius: Theme.radius
-            border.width: 1
-            border.color: Theme.outline
-        }
+        preferredWidth: 340
+        acceptText: ""
+        rejectText: qsTr("Cancel")
 
         contentItem: ColumnLayout {
-            spacing: Theme.spacingS
-            Text {
-                text: qsTr("Pick a profile for this program.")
-                color: Theme.textMuted
-                font.pixelSize: TypeScale.caption
-                Layout.fillWidth: true
-            }
+            spacing: 2
             Repeater {
                 model: window.profileList
-                AppButton {
+                SidebarItem {
                     required property string modelData
                     Layout.fillWidth: true
                     text: modelData
-                    variant: modelData === moveDialog.currentProfile
-                             ? "primary" : "secondary"
+                    selected: modelData === moveDialog.currentProfile
+                    showMarker: true
+                    emoji: (window.styleVersion, processModel.profileIcon(modelData))
+                    badge: modelData === moveDialog.currentProfile ? qsTr("current") : ""
                     onClicked: {
                         processModel.setProgramProfile(moveDialog.targetId, modelData)
+                        window.refreshCounts()
                         moveDialog.close()
                     }
                 }
@@ -1297,811 +614,109 @@ ApplicationWindow {
         }
     }
 
-    Dialog {
-        id: confirmDeleteDialog
-        property string targetId: ""
-        title: qsTr("Remove program")
-        header: Rectangle {
-            color: Theme.surfaceElevated
-            implicitHeight: hdrLabel_1156.implicitHeight + 2 * Theme.spacing
-            radius: Theme.radius
-            Rectangle {
-                anchors.bottom: parent.bottom
-                width: parent.width
-                height: parent.radius
-                color: Theme.surfaceElevated
-            }
-            Text {
-                id: hdrLabel_1156
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.left: parent.left
-                anchors.leftMargin: Theme.spacingL
-                text: confirmDeleteDialog.title
-                color: Theme.textPrimary
-                font.pixelSize: TypeScale.h2
-                font.weight: Font.Medium
-            }
-        }
-        anchors.centerIn: Overlay.overlay
-        width: Math.min(340, window.width - 2 * Theme.spacingL)
-        modal: true
-        standardButtons: Dialog.Yes | Dialog.No
+    AppDialog {
+        id: styleDialog
+        property string targetProfile: ""
+        property string selectedColor: ""
+        property string selectedIcon: ""
 
-        onAccepted: processModel.removeProgram(targetId)
+        readonly property var swatches: ["#8B8AF7", "#4ADE80", "#F87171", "#FBBF24",
+                                         "#C084FC", "#2DD4BF", "#F472B6", "#94A3B8"]
+        readonly property var emojis: ["🎮", "💼", "🎧", "🛠️", "🌐", "🎬",
+                                       "📊", "🚀", "🔥", "⭐", "🎯", "📁"]
 
-        background: Rectangle {
-            color: Theme.surfaceElevated
-            radius: Theme.radius
-            border.width: 1
-            border.color: Theme.outline
-        }
-
-        contentItem: Text {
-            text: qsTr("Remove this program from the list? This does not delete the program itself.")
-            color: Theme.textPrimary
-            font.pixelSize: TypeScale.base
-            wrapMode: Text.WordWrap
-        }
-    }
-
-    Dialog {
-        id: settingsDialog
-        title: qsTr("Settings")
-        header: Rectangle {
-            color: Theme.surfaceElevated
-            implicitHeight: hdrLabel_1181.implicitHeight + 2 * Theme.spacing
-            radius: Theme.radius
-            Rectangle {
-                anchors.bottom: parent.bottom
-                width: parent.width
-                height: parent.radius
-                color: Theme.surfaceElevated
-            }
-            Text {
-                id: hdrLabel_1181
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.left: parent.left
-                anchors.leftMargin: Theme.spacingL
-                text: settingsDialog.title
-                color: Theme.textPrimary
-                font.pixelSize: TypeScale.h2
-                font.weight: Font.Medium
-            }
-        }
-        anchors.centerIn: Overlay.overlay
-        width: Math.min(460, window.width - 2 * Theme.spacingL)
-        height: Math.min(window.height - 2 * Theme.spacingL, 640)
-        modal: true
-        padding: Theme.spacingL
-        standardButtons: Dialog.Ok | Dialog.Cancel
+        title: qsTr("Color and icon for “%1”").arg(targetProfile)
+        preferredWidth: 380
+        clearText: qsTr("Reset")
 
         onAccepted: {
-            var ms = parseInt(settingsDelay.text)
-            if (isNaN(ms) || ms < 0) ms = 0
-            processModel.setLaunchDelayMs(ms)
-
-            var poll = parseInt(settingsPoll.text)
-            if (isNaN(poll)) poll = 1200
-            processModel.setPollInterval(poll)
-            windowState.setValue("poll_interval", poll)
+            processModel.setProfileColor(targetProfile, selectedColor)
+            processModel.setProfileIcon(targetProfile, selectedIcon)
+        }
+        onCleared: {
+            selectedColor = ""
+            selectedIcon = ""
         }
 
-        background: Rectangle {
-            color: Theme.surfaceElevated
-            radius: Theme.radius
-            border.width: 1
-            border.color: Theme.outline
-        }
-
-        contentItem: Flickable {
-            id: settingsFlick
-            clip: true
-            contentWidth: settingsCol.width
-            contentHeight: settingsCol.height
-            boundsBehavior: Flickable.StopAtBounds
-            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
-
-            ColumnLayout {
-                id: settingsCol
-                width: settingsFlick.width
-                spacing: Theme.spacing
-
-            RowLayout {
-                Layout.fillWidth: true
-                Text {
-                    Layout.fillWidth: true
-                    text: qsTr("Dark theme")
-                    color: Theme.textPrimary
-                    font.pixelSize: TypeScale.base
-                }
-                Rectangle {
-                    width: 46; height: 26; radius: 13
-                    color: Theme.dark ? Theme.interactive : Theme.surfaceHover
-                    border.width: 1
-                    border.color: Theme.dark ? Theme.interactive : Theme.outline
-                    Behavior on color { ColorAnimation { duration: Theme.animFast } }
-                    Rectangle {
-                        width: 20; height: 20; radius: 10
-                        color: "#ffffff"
-                        y: 3
-                        x: Theme.dark ? parent.width - width - 3 : 3
-                        Behavior on x { NumberAnimation { duration: Theme.animFast } }
-                    }
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: {
-                            Theme.dark = !Theme.dark
-                            windowState.setValue("theme_dark", Theme.dark)
-                        }
-                    }
-                }
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-                Text {
-                    Layout.fillWidth: true
-                    text: qsTr("Minimize to tray on close")
-                    color: Theme.textPrimary
-                    font.pixelSize: TypeScale.base
-                }
-                Rectangle {
-                    width: 46; height: 26; radius: 13
-                    color: window.minimizeToTray ? Theme.interactive : Theme.surfaceHover
-                    border.width: 1
-                    border.color: window.minimizeToTray ? Theme.interactive : Theme.outline
-                    Behavior on color { ColorAnimation { duration: Theme.animFast } }
-                    Rectangle {
-                        width: 20; height: 20; radius: 10
-                        color: "#ffffff"
-                        y: 3
-                        x: window.minimizeToTray ? parent.width - width - 3 : 3
-                        Behavior on x { NumberAnimation { duration: Theme.animFast } }
-                    }
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: {
-                            window.minimizeToTray = !window.minimizeToTray
-                            windowState.setValue("minimize_to_tray", window.minimizeToTray)
-                        }
-                    }
-                }
-            }
-
-            Rectangle { Layout.fillWidth: true; height: 1; color: Theme.outline }
+        contentItem: ColumnLayout {
+            spacing: Theme.spaceM
 
             Text {
-                text: qsTr("Status poll interval (ms)")
-                color: Theme.textPrimary
-                font.pixelSize: TypeScale.base
-                Layout.fillWidth: true
-            }
-            Text {
-                text: qsTr("How often running state and uptime refresh. 200–10000.")
+                text: qsTr("Color")
                 color: Theme.textMuted
-                font.pixelSize: TypeScale.caption
-                Layout.fillWidth: true
-                wrapMode: Text.WordWrap
-            }
-            TextField {
-                id: settingsPoll
-                Layout.fillWidth: true
-                inputMethodHints: Qt.ImhDigitsOnly
-                color: Theme.textPrimary
-                placeholderText: "1200"
-                placeholderTextColor: Theme.textMuted
-                font.pixelSize: TypeScale.base
-                background: Rectangle {
-                    radius: Theme.radiusSmall
-                    color: Theme.surface
-                    border.width: 1
-                    border.color: settingsPoll.activeFocus ? Theme.interactive : Theme.outline
-                }
-            }
-
-            Rectangle { Layout.fillWidth: true; height: 1; color: Theme.outline }
-
-            Text {
-                text: qsTr("Delay between launches in a profile (ms)")
-                color: Theme.textPrimary
-                font.pixelSize: TypeScale.base
-                Layout.fillWidth: true
-            }
-            Text {
-                text: qsTr("0 = launch all at once. E.g. 1000 = one program per second.")
-                color: Theme.textMuted
-                font.pixelSize: TypeScale.caption
-                Layout.fillWidth: true
-                wrapMode: Text.WordWrap
-            }
-            TextField {
-                id: settingsDelay
-                Layout.fillWidth: true
-                inputMethodHints: Qt.ImhDigitsOnly
-                color: Theme.textPrimary
-                placeholderText: "0"
-                placeholderTextColor: Theme.textMuted
-                font.pixelSize: TypeScale.base
-                background: Rectangle {
-                    radius: Theme.radiusSmall
-                    color: Theme.surface
-                    border.width: 1
-                    border.color: settingsDelay.activeFocus ? Theme.interactive : Theme.outline
-                }
-            }
-
-            Rectangle { Layout.fillWidth: true; height: 1; color: Theme.outline }
-
-            Text {
-                text: qsTr("Auto-start a profile when the launcher opens")
-                color: Theme.textPrimary
-                font.pixelSize: TypeScale.base
-                Layout.fillWidth: true
+                font.pixelSize: TypeScale.body
             }
             Flow {
                 Layout.fillWidth: true
-                spacing: Theme.spacingS
-
-                AppButton {
-                    text: qsTr("None")
-                    variant: processModel.autoStartProfile() === "" ? "primary" : "secondary"
-                    onClicked: processModel.setAutoStartProfile("")
-                }
+                spacing: Theme.spaceS
                 Repeater {
-                    model: window.profileList
-                    AppButton {
+                    model: styleDialog.swatches
+                    Rectangle {
+                        id: swatch
                         required property string modelData
-                        text: modelData
-                        variant: processModel.autoStartProfile() === modelData
-                                 ? "primary" : "secondary"
-                        onClicked: processModel.setAutoStartProfile(modelData)
-                    }
-                }
-            }
-
-            Rectangle { Layout.fillWidth: true; height: 1; color: Theme.outline }
-
-            Text {
-                text: qsTr("Backup")
-                color: Theme.textPrimary
-                font.pixelSize: TypeScale.base
-                Layout.fillWidth: true
-            }
-            Text {
-                text: qsTr("Move your settings to another PC. Program paths may differ there.")
-                color: Theme.textMuted
-                font.pixelSize: TypeScale.caption
-                Layout.fillWidth: true
-                wrapMode: Text.WordWrap
-            }
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: Theme.spacingS
-                AppButton {
-                    text: qsTr("Export…")
-                    variant: "secondary"
-                    Layout.fillWidth: true
-                    onClicked: exportDialog.open()
-                }
-                AppButton {
-                    text: qsTr("Import…")
-                    variant: "secondary"
-                    Layout.fillWidth: true
-                    onClicked: importDialog.open()
-                }
-            }
-            }
-        }
-    }
-
-    Dialog {
-        id: logDialog
-        title: qsTr("Event log")
-        header: Rectangle {
-            color: Theme.surfaceElevated
-            implicitHeight: hdrLabel_1410.implicitHeight + 2 * Theme.spacing
-            radius: Theme.radius
-            Rectangle {
-                anchors.bottom: parent.bottom
-                width: parent.width
-                height: parent.radius
-                color: Theme.surfaceElevated
-            }
-            Text {
-                id: hdrLabel_1410
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.left: parent.left
-                anchors.leftMargin: Theme.spacingL
-                text: logDialog.title
-                color: Theme.textPrimary
-                font.pixelSize: TypeScale.h2
-                font.weight: Font.Medium
-            }
-        }
-        anchors.centerIn: Overlay.overlay
-        width: Math.min(window.width - 2 * Theme.spacingL, 600)
-        height: Math.min(window.height - 2 * Theme.spacingL, 520)
-        modal: true
-        standardButtons: Dialog.Close
-
-        background: Rectangle {
-            color: Theme.surfaceElevated
-            radius: Theme.radius
-            border.width: 1
-            border.color: Theme.outline
-        }
-
-        contentItem: ColumnLayout {
-            spacing: Theme.spacingS
-
-            RowLayout {
-                Layout.fillWidth: true
-                Text {
-                    Layout.fillWidth: true
-                    text: qsTr("Crashes and errors, newest first.")
-                    color: Theme.textMuted
-                    font.pixelSize: TypeScale.caption
-                }
-                AppButton {
-                    text: qsTr("Clear")
-                    variant: "secondary"
-                    Layout.preferredWidth: 70
-                    onClicked: eventLog.clear()
-                }
-            }
-
-            ListView {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                clip: true
-                model: eventLog
-                spacing: Theme.spacingS / 2
-
-                delegate: Rectangle {
-                    required property string time
-                    required property string kind
-                    required property string text
-
-                    width: ListView.view ? ListView.view.width : 0
-                    height: 54
-                    radius: Theme.radiusSmall
-                    color: Theme.surface
-                    border.width: 1
-                    border.color: Theme.outline
-
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: Theme.spacing
-                        anchors.rightMargin: Theme.spacing
-                        spacing: Theme.spacing
-
+                        readonly property bool current: styleDialog.selectedColor === modelData
+                        width: 30; height: 30; radius: 15
+                        color: "transparent"
+                        border.width: current ? 2 : 0
+                        border.color: Theme.text
                         Rectangle {
-                            Layout.preferredWidth: 8
-                            Layout.preferredHeight: 8
-                            radius: 4
-                            color: kind === "Crash" ? Theme.danger : Theme.textMuted
+                            anchors.centerIn: parent
+                            width: 20; height: 20; radius: 10
+                            color: swatch.modelData
                         }
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 2
-                            Text {
-                                Layout.fillWidth: true
-                                text: kind + "  ·  " + model.text
-                                color: Theme.textPrimary
-                                font.pixelSize: TypeScale.base
-                                elide: Text.ElideRight
-                            }
-                            Text {
-                                text: time
-                                color: Theme.textMuted
-                                font.pixelSize: TypeScale.caption
-                            }
+                        TapHandler {
+                            onTapped: styleDialog.selectedColor = swatch.current ? "" : swatch.modelData
                         }
                     }
                 }
-
-                Text {
-                    anchors.centerIn: parent
-                    visible: parent.count === 0
-                    text: qsTr("No events yet.")
-                    color: Theme.textMuted
-                    font.pixelSize: TypeScale.base
-                }
             }
-        }
-    }
-
-    Dialog {
-        id: startupDialog
-        title: qsTr("Windows startup")
-        header: Rectangle {
-            color: Theme.surfaceElevated
-            implicitHeight: hdrLabel_1506.implicitHeight + 2 * Theme.spacing
-            radius: Theme.radius
-            Rectangle {
-                anchors.bottom: parent.bottom
-                width: parent.width
-                height: parent.radius
-                color: Theme.surfaceElevated
-            }
-            Text {
-                id: hdrLabel_1506
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.left: parent.left
-                anchors.leftMargin: Theme.spacingL
-                text: startupDialog.title
-                color: Theme.textPrimary
-                font.pixelSize: TypeScale.h2
-                font.weight: Font.Medium
-            }
-        }
-        anchors.centerIn: Overlay.overlay
-        width: Math.min(window.width - 2 * Theme.spacingL, 560)
-        height: Math.min(window.height - 2 * Theme.spacingL, 520)
-        modal: true
-        standardButtons: Dialog.Close
-
-        background: Rectangle {
-            color: Theme.surfaceElevated
-            radius: Theme.radius
-            border.width: 1
-            border.color: Theme.outline
-        }
-
-        contentItem: ColumnLayout {
-            spacing: Theme.spacingS
 
             Text {
-                text: qsTr("Programs that launch when Windows starts.")
+                Layout.topMargin: Theme.spaceXS
+                text: qsTr("Icon")
                 color: Theme.textMuted
-                font.pixelSize: TypeScale.caption
-                Layout.fillWidth: true
+                font.pixelSize: TypeScale.body
             }
-
-            ListView {
+            Flow {
                 Layout.fillWidth: true
-                Layout.fillHeight: true
-                clip: true
-                model: startupModel
-                spacing: Theme.spacingS / 2
-
-                delegate: Rectangle {
-                    required property int index
-                    required property string name
-                    required property string command
-                    required property string source
-                    required property bool isEnabled
-
-                    width: ListView.view ? ListView.view.width : 0
-                    height: 58
-                    radius: Theme.radiusSmall
-                    color: Theme.surface
-                    border.width: 1
-                    border.color: Theme.outline
-
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: Theme.spacing
-                        anchors.rightMargin: Theme.spacing
-                        spacing: Theme.spacing
-
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 2
-                            Text {
-                                Layout.fillWidth: true
-                                text: name
-                                color: isEnabled ? Theme.textPrimary : Theme.textMuted
-                                font.pixelSize: TypeScale.base
-                                elide: Text.ElideRight
-                            }
-                            Text {
-                                Layout.fillWidth: true
-                                text: source + "  ·  " + command
-                                color: Theme.textMuted
-                                font.pixelSize: TypeScale.caption
-                                elide: Text.ElideMiddle
-                            }
+                spacing: Theme.spaceXS
+                Repeater {
+                    model: styleDialog.emojis
+                    Rectangle {
+                        id: emojiCell
+                        required property string modelData
+                        readonly property bool current: styleDialog.selectedIcon === modelData
+                        width: 36; height: 36; radius: Theme.radiusSmall
+                        color: current ? Theme.accentSoft
+                             : emojiHover.hovered ? Theme.hover : "transparent"
+                        border.width: current ? 2 : 0
+                        border.color: Theme.accent
+                        Text {
+                            anchors.centerIn: parent
+                            text: emojiCell.modelData
+                            font.pixelSize: 18
                         }
-
-                        AppButton {
-                            text: isEnabled ? qsTr("On") : qsTr("Off")
-                            variant: isEnabled ? "primary" : "secondary"
-                            Layout.preferredWidth: 60
-                            onClicked: startupModel.setEnabled(index, !isEnabled)
-                        }
-                        AppButton {
-                            text: "✕"
-                            variant: "secondary"
-                            Layout.preferredWidth: 40
-                            onClicked: startupModel.removeEntry(index)
+                        HoverHandler { id: emojiHover }
+                        TapHandler {
+                            onTapped: styleDialog.selectedIcon = emojiCell.current ? "" : emojiCell.modelData
                         }
                     }
-                }
-
-                Text {
-                    anchors.centerIn: parent
-                    visible: parent.count === 0
-                    text: qsTr("No startup programs found.")
-                    color: Theme.textMuted
-                    font.pixelSize: TypeScale.base
                 }
             }
         }
     }
 
-    Dialog {
-        id: scheduleDialog
-        property int selHour: 9
-        property int selMinute: 0
-        property bool selDaily: true
-        property string selType: "profile"
-        property string selProgramId: ""
-        property string selProgramLabel: ""
-
-        title: qsTr("Schedule")
-        header: Rectangle {
-            color: Theme.surfaceElevated
-            implicitHeight: hdrLabel_1611.implicitHeight + 2 * Theme.spacing
-            radius: Theme.radius
-            Rectangle {
-                anchors.bottom: parent.bottom
-                width: parent.width
-                height: parent.radius
-                color: Theme.surfaceElevated
-            }
-            Text {
-                id: hdrLabel_1611
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.left: parent.left
-                anchors.leftMargin: Theme.spacingL
-                text: scheduleDialog.title
-                color: Theme.textPrimary
-                font.pixelSize: TypeScale.h2
-                font.weight: Font.Medium
-            }
-        }
-        anchors.centerIn: Overlay.overlay
-        width: Math.min(window.width - 2 * Theme.spacingL, 560)
-        height: Math.min(window.height - 2 * Theme.spacingL, 620)
-        modal: true
-        standardButtons: Dialog.Close
-
-        background: Rectangle {
-            color: Theme.surfaceElevated
-            radius: Theme.radius
-            border.width: 1
-            border.color: Theme.outline
-        }
-
-        contentItem: ColumnLayout {
-            spacing: Theme.spacing
-
-            Text {
-                text: qsTr("Auto-start a profile or program at a set time.")
-                color: Theme.textMuted
-                font.pixelSize: TypeScale.caption
-                Layout.fillWidth: true
-            }
-
-            Rectangle {
-                Layout.fillWidth: true
-                radius: Theme.radiusSmall
-                color: Theme.surface
-                border.width: 1
-                border.color: Theme.outline
-                implicitHeight: addCol.implicitHeight + 2 * Theme.spacing
-
-                ColumnLayout {
-                    id: addCol
-                    anchors.fill: parent
-                    anchors.margins: Theme.spacing
-                    spacing: Theme.spacingS
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: Theme.spacingS
-                        AppButton {
-                            text: qsTr("Profile")
-                            variant: scheduleDialog.selType === "profile" ? "primary" : "secondary"
-                            onClicked: scheduleDialog.selType = "profile"
-                        }
-                        AppButton {
-                            text: qsTr("Program")
-                            variant: scheduleDialog.selType === "program" ? "primary" : "secondary"
-                            onClicked: scheduleDialog.selType = "program"
-                        }
-                        Item { Layout.fillWidth: true }
-                    }
-
-                    Flow {
-                        Layout.fillWidth: true
-                        spacing: Theme.spacingS
-                        visible: scheduleDialog.selType === "profile"
-                        Repeater {
-                            model: window.profileList
-                            AppButton {
-                                required property string modelData
-                                text: modelData
-                                variant: scheduleDialog.selProgramId === modelData ? "primary" : "secondary"
-                                onClicked: {
-                                    scheduleDialog.selProgramId = modelData
-                                    scheduleDialog.selProgramLabel = modelData
-                                }
-                            }
-                        }
-                    }
-
-                    ComboBox {
-                        Layout.fillWidth: true
-                        visible: scheduleDialog.selType === "program"
-                        model: processModel
-                        textRole: "name"
-                        valueRole: "procId"
-                        onActivated: {
-                            scheduleDialog.selProgramId = currentValue
-                            scheduleDialog.selProgramLabel = currentText
-                        }
-                    }
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: Theme.spacingS
-                        Text {
-                            text: qsTr("Time")
-                            color: Theme.textPrimary
-                            font.pixelSize: TypeScale.base
-                        }
-                        SpinBox {
-                            from: 0; to: 23
-                            value: scheduleDialog.selHour
-                            onValueModified: scheduleDialog.selHour = value
-                        }
-                        Text { text: ":"; color: Theme.textPrimary; font.pixelSize: TypeScale.h2 }
-                        SpinBox {
-                            from: 0; to: 59
-                            value: scheduleDialog.selMinute
-                            onValueModified: scheduleDialog.selMinute = value
-                        }
-                        Item { Layout.fillWidth: true }
-                        AppButton {
-                            text: scheduleDialog.selDaily ? qsTr("Daily") : qsTr("Once")
-                            variant: "secondary"
-                            onClicked: scheduleDialog.selDaily = !scheduleDialog.selDaily
-                        }
-                    }
-
-                    AppButton {
-                        text: qsTr("Add rule")
-                        variant: "primary"
-                        Layout.fillWidth: true
-                        enabled: scheduleDialog.selProgramId.length > 0
-                        onClicked: {
-                            scheduleModel.addRule(
-                                scheduleDialog.selType,
-                                scheduleDialog.selProgramId,
-                                scheduleDialog.selProgramLabel,
-                                scheduleDialog.selHour,
-                                scheduleDialog.selMinute,
-                                scheduleDialog.selDaily)
-                            scheduleDialog.selProgramId = ""
-                            scheduleDialog.selProgramLabel = ""
-                        }
-                    }
-                }
-            }
-
-            ListView {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                clip: true
-                model: scheduleModel
-                spacing: Theme.spacingS / 2
-
-                delegate: Rectangle {
-                    required property int index
-                    required property string targetType
-                    required property string targetLabel
-                    required property string timeText
-                    required property bool daily
-                    required property bool isEnabled
-
-                    width: ListView.view ? ListView.view.width : 0
-                    height: 54
-                    radius: Theme.radiusSmall
-                    color: Theme.surface
-                    border.width: 1
-                    border.color: Theme.outline
-
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: Theme.spacing
-                        anchors.rightMargin: Theme.spacing
-                        spacing: Theme.spacing
-
-                        Text {
-                            text: timeText
-                            color: isEnabled ? Theme.interactive : Theme.textMuted
-                            font.pixelSize: TypeScale.h2
-                        }
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 2
-                            Text {
-                                Layout.fillWidth: true
-                                text: targetLabel
-                                color: isEnabled ? Theme.textPrimary : Theme.textMuted
-                                font.pixelSize: TypeScale.base
-                                elide: Text.ElideRight
-                            }
-                            Text {
-                                text: (targetType === "profile" ? qsTr("Profile") : qsTr("Program"))
-                                      + "  ·  " + (daily ? qsTr("every day") : qsTr("once"))
-                                color: Theme.textMuted
-                                font.pixelSize: TypeScale.caption
-                            }
-                        }
-                        AppButton {
-                            text: isEnabled ? qsTr("On") : qsTr("Off")
-                            variant: isEnabled ? "primary" : "secondary"
-                            Layout.preferredWidth: 60
-                            onClicked: scheduleModel.setEnabled(index, !isEnabled)
-                        }
-                        AppButton {
-                            text: "✕"
-                            variant: "secondary"
-                            Layout.preferredWidth: 40
-                            onClicked: scheduleModel.removeRule(index)
-                        }
-                    }
-                }
-
-                Text {
-                    anchors.centerIn: parent
-                    visible: parent.count === 0
-                    text: qsTr("No schedule rules yet.")
-                    color: Theme.textMuted
-                    font.pixelSize: TypeScale.base
-                }
-            }
-        }
-    }
-
-    Dialog {
+    AppDialog {
         id: updateDialog
         property string newVersion: ""
         property string releaseUrl: ""
         property string notes: ""
-        property string phase: "idle"
+        property string phase: "idle"   // idle | downloading | done
         property real progress: 0
         property string errorText: ""
 
-        title: qsTr("Update available")
-        header: Rectangle {
-            color: Theme.surfaceElevated
-            implicitHeight: hdrLabel_1827.implicitHeight + 2 * Theme.spacing
-            radius: Theme.radius
-            Rectangle {
-                anchors.bottom: parent.bottom
-                width: parent.width
-                height: parent.radius
-                color: Theme.surfaceElevated
-            }
-            Text {
-                id: hdrLabel_1827
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.left: parent.left
-                anchors.leftMargin: Theme.spacingL
-                text: updateDialog.title
-                color: Theme.textPrimary
-                font.pixelSize: TypeScale.h2
-                font.weight: Font.Medium
-            }
-        }
-        anchors.centerIn: Overlay.overlay
-        width: Math.min(440, window.width - 2 * Theme.spacingL)
-        modal: true
-        standardButtons: Dialog.NoButton
+        title: qsTr("Version %1 is available").arg(newVersion)
+        preferredWidth: 460
         closePolicy: Popup.CloseOnEscape
 
         onOpened: {
@@ -2112,104 +727,58 @@ ApplicationWindow {
 
         Connections {
             target: updateChecker
-            function onDownloadProgress(f) {
-                updateDialog.progress = f
-            }
-            function onDownloadFinished(path) {
-                updateDialog.phase = "done"
-            }
+            function onDownloadProgress(f) { updateDialog.progress = f }
+            function onDownloadFinished(path) { updateDialog.phase = "done" }
             function onDownloadFailed(reason) {
                 updateDialog.phase = "idle"
-                updateDialog.errorText = reason
+                updateDialog.errorText = qsTr("Download failed: %1").arg(reason)
             }
-        }
-
-        background: Rectangle {
-            color: Theme.surfaceElevated
-            radius: Theme.radius
-            border.width: 1
-            border.color: Theme.outline
         }
 
         contentItem: ColumnLayout {
-            spacing: Theme.spacing
+            spacing: Theme.spaceM
 
-            RowLayout {
+            Text {
                 Layout.fillWidth: true
-                spacing: Theme.spacing
-
-                Rectangle {
-                    Layout.preferredWidth: 44
-                    Layout.preferredHeight: 44
-                    radius: 22
-                    color: Theme.interactive
-                    Text {
-                        anchors.centerIn: parent
-                        text: "🎉"
-                        font.pixelSize: 22
-                    }
-                }
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 2
-                    Text {
-                        text: qsTr("Version %1 is here!").arg(updateDialog.newVersion)
-                        color: Theme.textPrimary
-                        font.pixelSize: TypeScale.h2
-                        font.weight: Font.Medium
-                    }
-                    Text {
-                        text: qsTr("You have %1").arg(updateChecker.currentVersion)
-                        color: Theme.textMuted
-                        font.pixelSize: TypeScale.caption
-                    }
-                }
+                text: qsTr("You have version %1.").arg(updateChecker.currentVersion)
+                color: Theme.textMuted
+                font.pixelSize: TypeScale.body
             }
 
             Rectangle {
                 Layout.fillWidth: true
                 visible: updateDialog.notes.trim().length > 0
-                radius: Theme.radiusSmall
+                radius: Theme.radius
                 color: Theme.surface
                 border.width: 1
-                border.color: Theme.outline
-                implicitHeight: Math.min(notesFlick.contentHeight + 2 * Theme.spacing, 180)
+                border.color: Theme.line
+                implicitHeight: Math.min(notesText.implicitHeight + 2 * Theme.spaceM, 190)
 
                 Flickable {
                     id: notesFlick
                     anchors.fill: parent
-                    anchors.margins: Theme.spacing
+                    anchors.margins: Theme.spaceM
                     clip: true
                     contentWidth: width
-                    contentHeight: notesCol.height
+                    contentHeight: notesText.implicitHeight
                     boundsBehavior: Flickable.StopAtBounds
-                    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+                    ScrollBar.vertical: ScrollBar { }
 
-                    ColumnLayout {
-                        id: notesCol
+                    Text {
+                        id: notesText
                         width: notesFlick.width
-                        spacing: 4
-                        Text {
-                            text: qsTr("What's new")
-                            color: Theme.interactive
-                            font.pixelSize: TypeScale.caption
-                            font.weight: Font.Medium
-                        }
-                        Text {
-                            Layout.fillWidth: true
-                            text: updateDialog.notes
-                            color: Theme.textPrimary
-                            font.pixelSize: TypeScale.caption
-                            wrapMode: Text.WordWrap
-                            textFormat: Text.PlainText
-                        }
+                        text: updateDialog.notes
+                        color: Theme.text
+                        font.pixelSize: TypeScale.caption
+                        wrapMode: Text.WordWrap
+                        textFormat: Text.PlainText
                     }
                 }
             }
 
             ColumnLayout {
                 Layout.fillWidth: true
-                spacing: Theme.spacingS / 2
+                spacing: Theme.spaceXS
                 visible: updateDialog.phase === "downloading"
                 Text {
                     text: qsTr("Downloading… %1%").arg(Math.round(updateDialog.progress * 100))
@@ -2218,14 +787,14 @@ ApplicationWindow {
                 }
                 Rectangle {
                     Layout.fillWidth: true
-                    height: 6
-                    radius: 3
-                    color: Theme.surfaceHover
+                    implicitHeight: 4
+                    radius: 2
+                    color: Theme.pressed
                     Rectangle {
                         height: parent.height
-                        radius: 3
+                        radius: 2
                         width: parent.width * updateDialog.progress
-                        color: Theme.interactive
+                        color: Theme.accent
                     }
                 }
             }
@@ -2233,9 +802,11 @@ ApplicationWindow {
             Text {
                 Layout.fillWidth: true
                 visible: updateDialog.phase === "done"
-                text: qsTr("Download complete. Click Install to run the installer.")
-                color: Theme.running
-                font.pixelSize: TypeScale.caption
+                text: window.killOnExit
+                      ? qsTr("Downloaded. Installing closes the launcher and the programs it started, then opens it again.")
+                      : qsTr("Downloaded. Installing closes the launcher and opens it again; your programs keep running.")
+                color: Theme.textMuted
+                font.pixelSize: TypeScale.body
                 wrapMode: Text.WordWrap
             }
 
@@ -2247,32 +818,35 @@ ApplicationWindow {
                 font.pixelSize: TypeScale.caption
                 wrapMode: Text.WordWrap
             }
+        }
 
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: Theme.spacingS
-                Item { Layout.fillWidth: true }
+        footer: Item {
+            implicitHeight: 60
+            Row {
+                anchors.right: parent.right
+                anchors.rightMargin: Theme.spaceXL
+                anchors.top: parent.top
+                spacing: Theme.spaceS
 
                 AppButton {
                     text: qsTr("Later")
-                    variant: "secondary"
+                    minWidth: 80
                     visible: updateDialog.phase !== "downloading"
                     onClicked: updateDialog.close()
                 }
-
                 AppButton {
-                    text: qsTr("Open page")
-                    variant: "secondary"
+                    text: qsTr("Open download page")
+                    variant: "primary"
                     visible: updateDialog.phase === "idle" && !updateChecker.canDownload
                     onClicked: {
                         Qt.openUrlExternally(updateDialog.releaseUrl)
                         updateDialog.close()
                     }
                 }
-
                 AppButton {
                     text: qsTr("Download")
                     variant: "primary"
+                    minWidth: 80
                     visible: updateDialog.phase === "idle" && updateChecker.canDownload
                     onClicked: {
                         updateDialog.errorText = ""
@@ -2281,10 +855,10 @@ ApplicationWindow {
                         updateChecker.downloadUpdate()
                     }
                 }
-
                 AppButton {
                     text: qsTr("Install")
                     variant: "primary"
+                    minWidth: 80
                     visible: updateDialog.phase === "done"
                     onClicked: {
                         updateChecker.runInstaller()

@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(ProcessLauncher VERSION 1.0 LANGUAGES CXX)
+# Единственное место, где задаётся версия приложения: отсюда её берут сам
+# exe (проверка обновлений), установщик Windows и бандл macOS.
+# Тег релиза должен совпадать с этим числом — CI это проверяет.
+project(ProcessLauncher VERSION 1.5 LANGUAGES CXX)
+
+file(WRITE "${CMAKE_BINARY_DIR}/version.txt" "${PROJECT_VERSION}")
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -51,8 +56,27 @@ qt_add_qml_module(appProcessLauncher
     VERSION 1.0
     QML_FILES
         qml/Main.qml
-        qml/AppButton.qml
+        qml/ProgramsPage.qml
+        qml/SchedulePage.qml
+        qml/StartupPage.qml
+        qml/LogPage.qml
+        qml/SettingsPage.qml
         qml/ProcessRow.qml
+        qml/SidebarItem.qml
+        qml/PageHeader.qml
+        qml/SettingRow.qml
+        qml/HotkeyDialog.qml
+        qml/Keycap.qml
+        qml/AppDialog.qml
+        qml/AppButton.qml
+        qml/IconButton.qml
+        qml/ToggleSwitch.qml
+        qml/AppTextField.qml
+        qml/AppComboBox.qml
+        qml/SegmentedControl.qml
+        qml/AppMenu.qml
+        qml/AppMenuItem.qml
+        qml/AppMenuSeparator.qml
 )
 
 qt_add_resources(appProcessLauncher "app_icons"
@@ -60,6 +84,9 @@ qt_add_resources(appProcessLauncher "app_icons"
     FILES
         icons/app.png
 )
+
+target_compile_definitions(appProcessLauncher
+    PRIVATE APP_VERSION="${PROJECT_VERSION}")
 
 target_link_libraries(appProcessLauncher
     PRIVATE
@@ -79,12 +106,14 @@ if(WIN32)
 endif()
 
 if(APPLE)
+    # Глобальные горячие клавиши (RegisterEventHotKey).
+    target_link_libraries(appProcessLauncher PRIVATE "-framework Carbon")
     set_target_properties(appProcessLauncher PROPERTIES
         MACOSX_BUNDLE TRUE
         MACOSX_BUNDLE_BUNDLE_NAME "Process Launcher"
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.processlauncher.app"
-        MACOSX_BUNDLE_BUNDLE_VERSION "1.0"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0")
+        MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}")
 endif()
 
 install(TARGETS appProcessLauncher

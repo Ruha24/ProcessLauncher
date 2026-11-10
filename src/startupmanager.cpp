@@ -34,6 +34,19 @@ QByteArray approvedValue(bool enabled)
     return v;
 }
 
+#ifdef Q_OS_MACOS
+// На macOS показываем пользовательские LaunchAgents. Выключенная запись — это
+// тот же файл с суффиксом .disabled: launchd читает только *.plist, так что
+// при следующем входе в систему она не запустится, а включить её можно назад.
+const QString kSourceAgent = QStringLiteral("LaunchAgent");
+const QString kDisabledSuffix = QStringLiteral(".disabled");
+
+QString launchAgentsDir()
+{
+    return QDir::homePath() + QStringLiteral("/Library/LaunchAgents");
+}
+#endif
+
 QString startupFolderPath()
 {
     const QString base = QStandardPaths::writableLocation(
@@ -55,7 +68,7 @@ StartupModel::StartupModel(QObject* parent)
 
 bool StartupModel::available() const
 {
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN) || defined(Q_OS_MACOS)
     return true;
 #else
     return false;
@@ -129,6 +142,30 @@ QList<StartupEntry> StartupModel::collect() const
             rows.append(e);
         }
     }
+#elif defined(Q_OS_MACOS)
+    {
+        QDir dir(launchAgentsDir());
+        const QFileInfoList files = dir.entryInfoList(
+            {QStringLiteral("*.plist"), QStringLiteral("*.plist") + kDisabledSuffix},
+            QDir::Files, QDir::Name);
+        for (const QFileInfo& fi : files) {
+            const QSettings plist(fi.absoluteFilePath(), QSettings::NativeFormat);
+            const QString label = plist.value(QStringLiteral("Label")).toString();
+            QString program = plist.value(QStringLiteral("Program")).toString();
+            if (program.isEmpty()) {
+                program = plist.value(QStringLiteral("ProgramArguments"))
+                              .toStringList().join(QLatin1Char(' '));
+            }
+
+            StartupEntry e;
+            e.path    = fi.absoluteFilePath();
+            e.enabled = !fi.fileName().endsWith(kDisabledSuffix);
+            e.name    = label.isEmpty() ? fi.completeBaseName() : label;
+            e.command = program.isEmpty() ? e.path : program;
+            e.source  = kSourceAgent;
+            rows.append(e);
+        }
+    }
 #endif
 
     std::sort(rows.begin(), rows.end(),
@@ -169,6 +206,30 @@ void StartupModel::setEnabled(int row, bool on)
     e.enabled = on;
     const QModelIndex idx = index(row, 0);
     emit dataChanged(idx, idx, {EnabledRole});
+#elif defined(Q_OS_MACOS)
+    if (row < 0 || row >= m_rows.size())
+        return;
+
+    StartupEntry& e = m_rows[row];
+    if (e.enabled == on)
+        return;
+
+    QString target = e.path;
+    if (on && target.endsWith(kDisabledSuffix))
+        target.chop(kDisabledSuffix.size());
+    else if (!on)
+        target += kDisabledSuffix;
+
+    if (target == e.path || QFile::exists(target)
+        || !QFile::rename(e.path, target)) {
+        emit errorMessage(tr("Could not change startup state for %1").arg(e.name));
+        return;
+    }
+
+    e.path = target;
+    e.enabled = on;
+    const QModelIndex idx = index(row, 0);
+    emit dataChanged(idx, idx, {EnabledRole});
 #else
     Q_UNUSED(row) Q_UNUSED(on)
 #endif
@@ -193,6 +254,20 @@ void StartupModel::removeEntry(int row)
     }
 
     if (!ok) {
+        emit errorMessage(tr("Could not remove %1").arg(e.name));
+        return;
+    }
+
+    beginRemoveRows(QModelIndex(), row, row);
+    m_rows.removeAt(row);
+    endRemoveRows();
+#elif defined(Q_OS_MACOS)
+    if (row < 0 || row >= m_rows.size())
+        return;
+
+    const StartupEntry e = m_rows.at(row);
+    // В корзину, а не насовсем: чужой LaunchAgent можно будет вернуть.
+    if (!QFile::moveToTrash(e.path)) {
         emit errorMessage(tr("Could not remove %1").arg(e.name));
         return;
     }

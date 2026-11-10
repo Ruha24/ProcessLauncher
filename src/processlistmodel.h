@@ -46,6 +46,7 @@ public:
     Q_INVOKABLE void stopAll();
     Q_INVOKABLE void setWatch(const QString& id, bool on);
 
+    Q_INVOKABLE void setKillOnExit(bool on);
     Q_INVOKABLE int  launchDelayMs() const;
     Q_INVOKABLE void setLaunchDelayMs(int ms);
     Q_INVOKABLE int  pollInterval() const;

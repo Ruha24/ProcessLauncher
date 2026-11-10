@@ -52,6 +52,9 @@ public:
     void setWatch(const QString& id, bool on);
     bool watch(const QString& id) const;
 
+    bool killOnExit() const;
+    void setKillOnExit(bool on);
+
     int  launchDelayMs() const;
     void setLaunchDelayMs(int ms);
     int  pollInterval() const;
@@ -90,6 +93,8 @@ signals:
     void profilesChanged();
     void tick();
     void processExited(const QString& name, const QString& profile);
+    void profileRenamed(const QString& oldName, const QString& newName);
+    void profileRemoved(const QString& name);
     void errorOccurred(const QString& id, const QString& message);
 
 private slots:
@@ -100,6 +105,9 @@ private slots:
 private:
     void save() const;
     void load();
+    void resetState();
+    void updatePollTimer();
+    void handleExit(const QString& id);
     void syncHotkey(const QString& id);
     void syncProfileHotkey(const QString& name);
     QString profileHotkeyId(const QString& name) const;
@@ -107,12 +115,13 @@ private:
     QHash<QString, ProcessEntry>    m_entries;
     QHash<QString, JobController*>  m_jobs;
     QHash<QString, QDateTime>       m_startTimes;
-    QSet<QString>                   m_untracked;
+    QHash<QString, qint64>          m_untracked;   // id -> pid
     QStringList                     m_profiles;
     QHash<QString, QString>         m_profileBinds;
     QHash<QString, QString>         m_profileColors;
     QHash<QString, QString>         m_profileIcons;
     int                             m_launchDelayMs = 0;
+    bool                            m_killOnExit = true;
     QString                         m_autoStartProfile;
     QStringList                     m_launchQueue;
     QTimer*                         m_pollTimer = nullptr;

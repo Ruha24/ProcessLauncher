@@ -34,6 +34,17 @@ jobs:
           cmake -B build -G "Ninja" -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 .
           cmake --build build --config Release
 
+      - name: Check that the tag matches the app version
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          ver="$(cat build/version.txt)"
+          tag="${GITHUB_REF_NAME#v}"
+          if [ "$tag" != "$ver" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match version $ver from CMakeLists.txt"
+            exit 1
+          fi
+
       - name: Deploy Qt libraries
         shell: cmd
         run: |
@@ -55,7 +66,8 @@ jobs:
       - name: Build installer (Inno Setup)
         shell: cmd
         run: |
-          iscc /O"%CD%\installer_out" "%CD%\packaging\windows\installer.iss"
+          set /p APPVER=<build\version.txt
+          iscc /DMyAppVersion=%APPVER% /O"%CD%\installer_out" "%CD%\packaging\windows\installer.iss"
 
       - name: Upload installer
         uses: actions/upload-artifact@v4

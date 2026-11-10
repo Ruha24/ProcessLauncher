@@ -2,65 +2,51 @@ import QtQuick
 import QtQuick.Controls.Basic
 import Theme
 
+// variant: "primary" | "secondary" | "ghost" | "danger"
 Button {
     id: control
 
     property string variant: "secondary"
-    property int minWidth: 96
-    property color accent: variant === "primary" ? Theme.interactive
-                         : variant === "danger"  ? Theme.danger
-                         : Theme.surfaceElevated
+    property int minWidth: 0
 
-    implicitHeight: 38
-    implicitWidth: Math.max(minWidth, implicitContentWidth + 2 * Theme.spacing)
+    implicitHeight: Theme.controlHeight
+    implicitWidth: Math.max(minWidth, label.implicitWidth + 2 * Theme.spaceL)
     padding: 0
-    font.pixelSize: TypeScale.base
-
-    activeFocusOnTab: true
+    font.pixelSize: TypeScale.body
     hoverEnabled: true
+    activeFocusOnTab: true
+    opacity: enabled ? 1 : 0.45
 
     contentItem: Text {
+        id: label
         text: control.text
         font: control.font
-        color: control.variant === "secondary" ? Theme.textPrimary
-                                                : Theme.textOnAccent
-        opacity: control.enabled ? 1.0 : 0.4
+        color: control.variant === "primary" ? Theme.onAccent
+             : control.variant === "danger"  ? Theme.danger
+             : Theme.text
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
+        elide: Text.ElideRight
     }
 
     background: Rectangle {
         radius: Theme.radiusSmall
         color: {
-            if (!control.enabled)
-                return Qt.darker(control.accent, 1.4)
-            if (control.down)
-                return Qt.darker(control.accent, 1.15)
-            if (control.hovered)
-                return control.variant === "secondary" ? Theme.surfaceHover
-                                                        : Qt.lighter(control.accent, 1.12)
-            return control.accent
+            if (control.variant === "primary")
+                return control.down ? Theme.accent
+                     : control.hovered ? Theme.accentHover : Theme.accent
+            if (control.variant === "danger")
+                return control.down || control.hovered ? Theme.dangerSoft : "transparent"
+            if (control.variant === "ghost")
+                return control.down ? Theme.pressed
+                     : control.hovered ? Theme.hover : "transparent"
+            return control.down ? Theme.pressed
+                 : control.hovered ? Theme.hover : Theme.raised
         }
-        border.width: control.variant === "secondary" ? 1 : 0
-        border.color: Theme.outline
+        border.width: control.visualFocus ? 2
+                    : (control.variant === "secondary" || control.variant === "danger") ? 1 : 0
+        border.color: control.visualFocus ? Theme.accent : Theme.line
 
-        Rectangle {
-            anchors.fill: parent
-            anchors.margins: -3
-            radius: parent.radius + 3
-            color: "transparent"
-            border.width: 2
-            border.color: Theme.interactive
-            visible: control.activeFocus
-        }
-
-        Behavior on color {
-            ColorAnimation { duration: Theme.animFast }
-        }
-    }
-
-    scale: down ? 0.97 : 1.0
-    Behavior on scale {
-        NumberAnimation { duration: Theme.animFast; easing.type: Easing.OutCubic }
+        Behavior on color { ColorAnimation { duration: Theme.animFast } }
     }
 }
