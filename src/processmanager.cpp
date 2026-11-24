@@ -754,6 +754,11 @@ int ProcessManager::profileTotalCount(const QString& name) const
     return n;
 }
 
+QString ProcessManager::programName(const QString& id) const
+{
+    return m_entries.value(id).name;
+}
+
 QList<ProcessEntry> ProcessManager::entries() const
 {
     QList<ProcessEntry> result = m_entries.values();

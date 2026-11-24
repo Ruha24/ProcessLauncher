@@ -15,9 +15,11 @@ struct ScheduleRule
     QString targetType;
     QString targetId;
     QString targetLabel;
+    QString action = QStringLiteral("start");   // "start" | "stop"
     int     hour = 9;
     int     minute = 0;
-    bool    daily = true;
+    int     days = 0x7F;    // бит 0 — понедельник … бит 6 — воскресенье
+    bool    once = false;   // сработать один раз и выключиться
     bool    enabled = true;
     QDate   lastRun;
 };
@@ -33,9 +35,12 @@ public:
         TargetLabelRole,
         HourRole,
         MinuteRole,
-        DailyRole,
+        DaysRole,
+        OnceRole,
+        ActionRole,
         EnabledRole,
         TimeTextRole,
+        DescriptionRole,
     };
     Q_ENUM(Role)
 
@@ -45,9 +50,10 @@ public:
     QVariant data(const QModelIndex& index, int role) const override;
     QHash<int, QByteArray> roleNames() const override;
 
-    Q_INVOKABLE void addRule(const QString& targetType, const QString& targetId,
+    Q_INVOKABLE void addRule(const QString& action,
+                             const QString& targetType, const QString& targetId,
                              const QString& targetLabel,
-                             int hour, int minute, bool daily);
+                             int hour, int minute, int days, bool once);
     Q_INVOKABLE void setEnabled(int row, bool on);
     Q_INVOKABLE void removeRule(int row);
 
@@ -60,6 +66,8 @@ private:
     QString configFilePath() const;
     void load();
     void save() const;
+    QString describe(const ScheduleRule& r) const;
+    static QString daysText(int days);
 
     ProcessManager* m_manager = nullptr;
     QTimer*         m_timer = nullptr;

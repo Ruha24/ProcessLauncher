@@ -8,8 +8,13 @@ Item {
 
     required property var app
 
+    property string action: "start"
     property string targetType: "profile"
-    property bool daily: true
+    property bool once: false
+    property int days: 0x7F   // бит 0 — понедельник … бит 6 — воскресенье
+
+    readonly property var dayNames: [qsTr("Mon"), qsTr("Tue"), qsTr("Wed"), qsTr("Thu"),
+                                     qsTr("Fri"), qsTr("Sat"), qsTr("Sun")]
 
     function clampField(field, max) {
         var v = parseInt(field.text)
@@ -29,7 +34,7 @@ Item {
             Layout.rightMargin: Theme.spaceXL
             Layout.topMargin: Theme.spaceXL
             title: qsTr("Schedule")
-            subtitle: qsTr("Start a profile or a single program at a set time. The launcher has to be running at that moment.")
+            subtitle: qsTr("Start or stop a profile or a single program at a set time. The launcher has to be running at that moment.")
         }
 
         // Новое правило.
@@ -54,11 +59,12 @@ Item {
                     Layout.fillWidth: true
                     spacing: Theme.spaceS
 
-                    Text {
-                        text: qsTr("Start")
-                        color: Theme.textMuted
-                        font.pixelSize: TypeScale.body
-                        Layout.preferredWidth: 40
+                    SegmentedControl {
+                        Layout.preferredWidth: implicitWidth
+                        options: [{ label: qsTr("Start"), value: "start" },
+                                  { label: qsTr("Stop"), value: "stop" }]
+                        value: page.action
+                        onPicked: (v) => page.action = v
                     }
                     SegmentedControl {
                         options: [{ label: qsTr("Profile"), value: "profile" },
@@ -92,7 +98,7 @@ Item {
                         text: qsTr("at")
                         color: Theme.textMuted
                         font.pixelSize: TypeScale.body
-                        Layout.preferredWidth: 40
+                        Layout.preferredWidth: 28
                     }
                     AppTextField {
                         id: hourField
@@ -121,11 +127,56 @@ Item {
                     }
                     SegmentedControl {
                         Layout.leftMargin: Theme.spaceS
-                        options: [{ label: qsTr("Every day"), value: true },
-                                  { label: qsTr("Once"), value: false }]
-                        value: page.daily
-                        onPicked: (v) => page.daily = v
+                        options: [{ label: qsTr("Repeat"), value: false },
+                                  { label: qsTr("Once"), value: true }]
+                        value: page.once
+                        onPicked: (v) => page.once = v
                     }
+
+                    // Дни недели — только для повторяющихся правил.
+                    Row {
+                        Layout.leftMargin: Theme.spaceS
+                        visible: !page.once
+                        spacing: 4
+
+                        Repeater {
+                            model: 7
+
+                            AbstractButton {
+                                id: dayChip
+                                required property int index
+                                readonly property bool on: (page.days & (1 << index)) !== 0
+
+                                implicitWidth: 34
+                                implicitHeight: Theme.controlHeight
+                                hoverEnabled: true
+                                activeFocusOnTab: true
+                                onClicked: {
+                                    var d = page.days ^ (1 << index)
+                                    if (d !== 0)          // хотя бы один день остаётся
+                                        page.days = d
+                                }
+
+                                contentItem: Text {
+                                    text: page.dayNames[dayChip.index]
+                                    color: dayChip.on ? Theme.accent : Theme.textMuted
+                                    font.pixelSize: TypeScale.caption
+                                    font.weight: dayChip.on ? Font.DemiBold : Font.Normal
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignVCenter
+                                }
+                                background: Rectangle {
+                                    radius: Theme.radiusSmall
+                                    color: dayChip.on ? Theme.accentSoft
+                                         : dayChip.hovered ? Theme.hover : "transparent"
+                                    border.width: dayChip.visualFocus ? 2 : 1
+                                    border.color: dayChip.visualFocus ? Theme.accent
+                                                : dayChip.on ? "transparent" : Theme.line
+                                }
+                            }
+                        }
+                    }
+
                     Item { Layout.fillWidth: true }
                     AppButton {
                         text: qsTr("Add rule")
@@ -136,11 +187,11 @@ Item {
                             var h = page.clampField(hourField, 23)
                             var m = page.clampField(minuteField, 59)
                             if (page.targetType === "profile")
-                                scheduleModel.addRule("profile", profileCombo.currentText,
-                                                      profileCombo.currentText, h, m, page.daily)
+                                scheduleModel.addRule(page.action, "profile", profileCombo.currentText,
+                                                      profileCombo.currentText, h, m, page.days, page.once)
                             else
-                                scheduleModel.addRule("program", programCombo.currentValue,
-                                                      programCombo.currentText, h, m, page.daily)
+                                scheduleModel.addRule(page.action, "program", programCombo.currentValue,
+                                                      programCombo.currentText, h, m, page.days, page.once)
                         }
                     }
                 }
@@ -163,7 +214,8 @@ Item {
                 required property string targetType
                 required property string targetLabel
                 required property string timeText
-                required property bool daily
+                required property string description
+                required property string action
                 required property bool isEnabled
 
                 width: ListView.view ? ListView.view.width : 0
@@ -195,12 +247,9 @@ Item {
                         }
                         Text {
                             Layout.fillWidth: true
-                            text: rule.targetType === "profile"
-                                  ? (rule.daily ? qsTr("Whole profile, every day")
-                                                : qsTr("Whole profile, once"))
-                                  : (rule.daily ? qsTr("Program, every day")
-                                                : qsTr("Program, once"))
-                            color: Theme.textFaint
+                            text: rule.description
+                            color: rule.action === "stop" && rule.isEnabled ? Theme.danger
+                                                                             : Theme.textFaint
                             font.pixelSize: TypeScale.caption
                             elide: Text.ElideRight
                         }

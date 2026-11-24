@@ -87,6 +87,7 @@ public:
     int  profileTotalCount(const QString& name) const;
 
     QList<ProcessEntry> entries() const;
+    QString programName(const QString& id) const;   // пусто, если программы нет
 
     QString configFilePath() const;
 
