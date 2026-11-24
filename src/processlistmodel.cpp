@@ -62,6 +62,8 @@ QVariant ProcessListModel::data(const QModelIndex& index, int role) const
     case AdminRole:          return e.runAsAdmin;
     case StartDelayRole:     return e.startDelaySec;
     case KindRole:           return e.kind;
+    case IconSourceRole:     return e.iconPath.isEmpty() ? e.path : e.iconPath;
+    case CustomIconRole:     return !e.iconPath.isEmpty();
     }
     return QVariant();
 }
@@ -84,6 +86,8 @@ QHash<int, QByteArray> ProcessListModel::roleNames() const
         {AdminRole,          QByteArrayLiteral("runAsAdmin")},
         {StartDelayRole,     QByteArrayLiteral("startDelay")},
         {KindRole,           QByteArrayLiteral("kind")},
+        {IconSourceRole,     QByteArrayLiteral("iconSource")},
+        {CustomIconRole,     QByteArrayLiteral("hasCustomIcon")},
     };
 }
 
@@ -204,6 +208,16 @@ void ProcessListModel::setRunAsAdmin(const QString& id, bool on)
 void ProcessListModel::setStartDelay(const QString& id, int seconds)
 {
     m_manager->setStartDelay(id, seconds);
+}
+
+void ProcessListModel::setIcon(const QString& id, const QString& iconPath)
+{
+    m_manager->setIcon(id, iconPath);
+}
+
+void ProcessListModel::fetchLinkIcon(const QString& id)
+{
+    m_manager->fetchLinkIcon(id, true);
 }
 
 void ProcessListModel::setProgramProfile(const QString& id, const QString& profile)

@@ -3,6 +3,7 @@
 #include "hotkeymanager.h"
 #include "apppaths.h"
 #include "shortcutresolver.h"
+#include "linkiconfetcher.h"
 
 #include <QProcess>
 #include <QTimer>
@@ -63,7 +64,24 @@ ProcessManager::ProcessManager(QObject* parent)
     , m_pollTimer(new QTimer(this))
     , m_launchTimer(new QTimer(this))
     , m_hotkeys(new HotkeyManager(this))
+    , m_iconFetcher(new LinkIconFetcher(this))
 {
+    connect(m_iconFetcher, &LinkIconFetcher::finished, this,
+            [this](const QString& id, const QString& iconPath) {
+        const bool manual = m_manualIconFetch.remove(id);
+        const auto it = m_entries.constFind(id);
+        if (it == m_entries.constEnd())
+            return;
+        if (iconPath.isEmpty()) {
+            if (manual)
+                emit errorOccurred(id, tr("Couldn't find an icon for %1").arg(it->name));
+            return;
+        }
+        // Автоматически не перетираем иконку, которую пользователь уже выбрал сам.
+        if (manual || it->iconPath.isEmpty())
+            setIcon(id, iconPath);
+    });
+
     m_pollTimer->setInterval(kPollIntervalMs);
     connect(m_pollTimer, &QTimer::timeout, this, &ProcessManager::pollJobs);
 
@@ -417,7 +435,10 @@ QString ProcessManager::addProgram(const QString& path, const QString& bind)
     QString realPath = path;
 
     // Если перетащили/выбрали ярлык — тихо подменяем на настоящий путь к .exe.
+    QString shortcutName, shortcutIcon;
     if (ShortcutResolver::isShortcut(path)) {
+        shortcutName = QFileInfo(path).completeBaseName();
+        shortcutIcon = ShortcutResolver::iconFile(path);
         bool ok = false;
         const QString resolved = ShortcutResolver::resolve(path, &ok);
         if (ok && !resolved.isEmpty()) {
@@ -443,7 +464,12 @@ QString ProcessManager::addProgram(const QString& path, const QString& bind)
     }
 
     e.id   = QUuid::createUuid().toString(QUuid::WithoutBraces);
-    e.name = defaultName(e.path);
+    // У ссылки (steam://rungameid/730) осмысленного имени нет — берём имя
+    // ярлыка («Counter-Strike») и его иконку.
+    if (e.kind == QLatin1String("link") && !shortcutName.isEmpty())
+        e.customName = shortcutName;
+    e.iconPath = shortcutIcon;
+    e.name = effectiveName(e);
     e.bind = bind;
     e.profile = m_profiles.isEmpty() ? QStringLiteral("Default")
                                      : m_profiles.first();
@@ -452,6 +478,8 @@ QString ProcessManager::addProgram(const QString& path, const QString& bind)
     syncHotkey(e.id);
     save();
     emit listChanged();
+    if (e.kind == QLatin1String("link") && e.iconPath.isEmpty())
+        fetchLinkIcon(e.id, false);
     return e.id;
 }
 
@@ -540,6 +568,40 @@ void ProcessManager::setRunAsAdmin(const QString& id, bool on)
     it->runAsAdmin = on;
     save();
     emit listChanged();
+}
+
+void ProcessManager::setIcon(const QString& id, const QString& iconPath)
+{
+    auto it = m_entries.find(id);
+    if (it == m_entries.end())
+        return;
+
+    QString p = iconPath.trimmed();
+    if (p.startsWith(QStringLiteral("file:")))
+        p = QUrl(p).toLocalFile();
+    if (!p.isEmpty())
+        p = QFileInfo(p).absoluteFilePath();
+    if (it->iconPath == p)
+        return;
+
+    it->iconPath = p;
+    save();
+    emit listChanged();
+}
+
+void ProcessManager::fetchLinkIcon(const QString& id, bool manual)
+{
+    const auto it = m_entries.constFind(id);
+    if (it == m_entries.constEnd() || it->kind != QLatin1String("link"))
+        return;
+    if (!LinkIconFetcher::canFetch(it->path)) {
+        if (manual)
+            emit errorOccurred(id, tr("Icons can only be found for websites and Steam games"));
+        return;
+    }
+    if (manual)
+        m_manualIconFetch.insert(id);
+    m_iconFetcher->fetch(id, it->path);
 }
 
 void ProcessManager::setStartDelay(const QString& id, int seconds)
@@ -1005,6 +1067,8 @@ void ProcessManager::save() const
             obj.insert(QStringLiteral("admin"), true);
         if (e.startDelaySec > 0)
             obj.insert(QStringLiteral("delay"), e.startDelaySec);
+        if (!e.iconPath.isEmpty())
+            obj.insert(QStringLiteral("icon"), e.iconPath);
         programs.append(obj);
     }
 
@@ -1138,6 +1202,7 @@ void ProcessManager::load()
         e.workDir = obj.value(QStringLiteral("workDir")).toString();
         e.runAsAdmin = obj.value(QStringLiteral("admin")).toBool(false);
         e.startDelaySec = qBound(0, obj.value(QStringLiteral("delay")).toInt(0), 3600);
+        e.iconPath = obj.value(QStringLiteral("icon")).toString();
         e.bind = obj.value(QStringLiteral("bind")).toString();
         e.args = obj.value(QStringLiteral("args")).toString();
         e.note = obj.value(QStringLiteral("note")).toString();
@@ -1154,6 +1219,12 @@ void ProcessManager::load()
 
     for (const QString& name : m_profiles)
         syncProfileHotkey(name);
+
+    // Игры Steam без иконки: она берётся из локального кеша Steam, без сети.
+    for (const ProcessEntry& e : std::as_const(m_entries))
+        if (e.kind == QLatin1String("link") && e.iconPath.isEmpty()
+            && e.path.startsWith(QLatin1String("steam://"), Qt::CaseInsensitive))
+            fetchLinkIcon(e.id, false);
 
     save();
 }

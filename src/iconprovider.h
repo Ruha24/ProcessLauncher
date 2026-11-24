@@ -6,6 +6,12 @@
 #include <QHash>
 #include <QPixmap>
 
+#include <QIcon>
+
+// Иконка для источника: картинка (.png/.ico/…) — как есть, файл или папка —
+// системная иконка, ссылка — значок сети. Пустая, если ничего не нашлось.
+QIcon iconForSource(const QString& source);
+
 class IconProvider : public QQuickImageProvider
 {
 public:

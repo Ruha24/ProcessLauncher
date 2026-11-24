@@ -12,6 +12,7 @@
 #include <QPixmap>
 
 #include "processmanager.h"
+#include "iconprovider.h"
 
 TrayController::TrayController(QWindow* window, QObject* parent)
     : QObject(parent)
@@ -148,7 +149,8 @@ void TrayController::addProgramActions(QMenu* menu, const QList<ProcessEntry>& e
         const bool openOnly = ProcessManager::isOpenOnly(e);
         // В Windows у пункта с иконкой галочка не рисуется, поэтому
         // запущенную программу отмечает зелёная точка на иконке.
-        QAction* a = menu->addAction(programIcon(e.path, running), e.name);
+        QAction* a = menu->addAction(
+            programIcon(e.iconPath.isEmpty() ? e.path : e.iconPath, running), e.name);
         a->setToolTip(openOnly ? tr("Click to open")
                       : running ? tr("Running — click to stop") : tr("Click to start"));
         const QString id = e.id;
@@ -170,10 +172,7 @@ QIcon TrayController::programIcon(const QString& path, bool running)
     if (it != cache.constEnd())
         return *it;
 
-    static QFileIconProvider provider;
-    QIcon base = QFileInfo::exists(path) ? provider.icon(QFileInfo(path))
-               : ProcessManager::isLink(path) ? provider.icon(QFileIconProvider::Network)
-               : QIcon();
+    QIcon base = iconForSource(path);
 
     if (!running) {
         cache.insert(path, base);

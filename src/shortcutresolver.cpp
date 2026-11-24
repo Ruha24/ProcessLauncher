@@ -111,6 +111,26 @@ QString resolveUrlFile(const QString& path, bool* ok)
 
 namespace ShortcutResolver {
 
+QString iconFile(const QString& path)
+{
+    if (!isUrl(path))
+        return QString();
+
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
+        return QString();
+
+    QTextStream in(&f);
+    while (!in.atEnd()) {
+        const QString line = in.readLine().trimmed();
+        if (line.startsWith(QLatin1String("IconFile="), Qt::CaseInsensitive)) {
+            const QString icon = line.mid(9).trimmed();
+            return QFileInfo(icon).isFile() ? QFileInfo(icon).absoluteFilePath() : QString();
+        }
+    }
+    return QString();
+}
+
 bool isShortcut(const QString& path)
 {
     return isLnk(path) || isUrl(path);

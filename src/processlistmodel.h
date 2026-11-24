@@ -30,6 +30,8 @@ public:
         AdminRole,
         StartDelayRole,
         KindRole,
+        IconSourceRole,
+        CustomIconRole,
     };
     Q_ENUM(Role)
 
@@ -49,6 +51,8 @@ public:
     Q_INVOKABLE void setWorkDir(const QString& id, const QString& dir);
     Q_INVOKABLE void setRunAsAdmin(const QString& id, bool on);
     Q_INVOKABLE void setStartDelay(const QString& id, int seconds);
+    Q_INVOKABLE void setIcon(const QString& id, const QString& iconPath);
+    Q_INVOKABLE void fetchLinkIcon(const QString& id);
     Q_INVOKABLE void setProgramProfile(const QString& id, const QString& profile);
     Q_INVOKABLE void start(const QString& id);
     Q_INVOKABLE void stop(const QString& id);

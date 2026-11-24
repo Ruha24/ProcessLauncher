@@ -22,6 +22,8 @@ Item {
     required property bool   runAsAdmin
     required property int    startDelay
     required property string kind
+    required property string iconSource
+    required property bool   hasCustomIcon
     // Папки и ссылки только открываются — процесса, за которым следить, нет.
     readonly property bool openOnly: kind === "folder" || kind === "link"
 
@@ -37,6 +39,7 @@ Item {
     signal resetWorkDirRequested(string id)
     signal toggleAdminRequested(string id, bool on)
     signal editDelayRequested(string id, int currentDelay, string name)
+    signal chooseIconRequested(string id)
     signal moveRequested(string id, string currentProfile)
     signal removeRequested(string id, string name)
     signal openFolderRequested(string path)
@@ -113,6 +116,20 @@ Item {
         AppMenuItem {
             text: qsTr("Rename…")
             onTriggered: row.renameRequested(row.procId, row.name, row.defaultName)
+        }
+        AppMenuItem {
+            text: qsTr("Change icon…")
+            onTriggered: row.chooseIconRequested(row.procId)
+        }
+        AppMenuItem {
+            visible: row.kind === "link"
+            text: qsTr("Get icon from link")
+            onTriggered: processModel.fetchLinkIcon(row.procId)
+        }
+        AppMenuItem {
+            visible: row.hasCustomIcon
+            text: qsTr("Reset icon")
+            onTriggered: processModel.setIcon(row.procId, "")
         }
         AppMenuItem {
             text: qsTr("Hotkey…")
@@ -214,7 +231,7 @@ Item {
             sourceSize.height: 28
             fillMode: Image.PreserveAspectFit
             asynchronous: true
-            source: "image://exeicons/" + encodeURIComponent(row.path)
+            source: "image://exeicons/" + encodeURIComponent(row.iconSource)
         }
 
         ColumnLayout {

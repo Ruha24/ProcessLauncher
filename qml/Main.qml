@@ -233,6 +233,11 @@ ApplicationWindow {
                 })
     }
 
+    function chooseIcon(id) {
+        iconDialog.targetId = id
+        iconDialog.open()
+    }
+
     function editNote(id, note) {
         askText(qsTr("Note"),
                 qsTr("Shown under the program name in the list."),
@@ -547,6 +552,18 @@ ApplicationWindow {
             processModel.addProgramFromUrl(selectedFile, window.activeProfile)
             window.refreshCounts()
         }
+    }
+
+    FileDialog {
+        id: iconDialog
+        property string targetId: ""
+        title: qsTr("Choose an icon")
+        nameFilters: Qt.platform.os === "windows"
+                     ? [qsTr("Images and programs (*.png *.jpg *.jpeg *.ico *.bmp *.exe)"),
+                        qsTr("All files (*)")]
+                     : [qsTr("Images (*.png *.jpg *.jpeg *.ico *.bmp *.icns)"),
+                        qsTr("All files (*)")]
+        onAccepted: processModel.setIcon(targetId, selectedFile.toString())
     }
 
     FolderDialog {

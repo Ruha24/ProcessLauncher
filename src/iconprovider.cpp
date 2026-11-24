@@ -4,6 +4,32 @@
 #include <QUrl>
 #include <QPainter>
 
+QIcon iconForSource(const QString& source)
+{
+    static QFileIconProvider provider;
+    static const QStringList imageExts = {
+        QStringLiteral("png"), QStringLiteral("jpg"), QStringLiteral("jpeg"),
+        QStringLiteral("ico"), QStringLiteral("bmp"), QStringLiteral("gif"),
+        QStringLiteral("svg"), QStringLiteral("webp"),
+    };
+
+    const QFileInfo info(source);
+    if (info.isFile() && imageExts.contains(info.suffix().toLower())) {
+        const QIcon icon(info.absoluteFilePath());
+        if (!icon.isNull() && !icon.availableSizes().isEmpty())
+            return icon;
+        // Некоторые форматы QIcon не перечисляет размеры — пробуем как картинку.
+        const QPixmap pm(info.absoluteFilePath());
+        if (!pm.isNull())
+            return QIcon(pm);
+    }
+    if (info.exists())
+        return provider.icon(info);
+    if (source.contains(QLatin1String("://")))
+        return provider.icon(QFileIconProvider::Network);
+    return QIcon();
+}
+
 IconProvider::IconProvider()
     : QQuickImageProvider(QQuickImageProvider::Pixmap)
 {
@@ -24,16 +50,9 @@ QPixmap IconProvider::requestPixmap(const QString& id, QSize* size,
     }
 
     QPixmap pm;
-    const QFileInfo info(path);
-    if (path.contains(QLatin1String("://")) && !info.exists()) {
-        const QIcon icon = m_fileIcons.icon(QFileIconProvider::Network);
-        if (!icon.isNull())
-            pm = icon.pixmap(edge, edge);
-    } else if (info.exists()) {
-        const QIcon icon = m_fileIcons.icon(info);
-        if (!icon.isNull())
-            pm = icon.pixmap(edge, edge);
-    }
+    const QIcon icon = iconForSource(path);
+    if (!icon.isNull())
+        pm = icon.pixmap(edge, edge);
 
     if (pm.isNull()) {
         pm = QPixmap(edge, edge);

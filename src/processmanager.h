@@ -16,6 +16,7 @@ QT_END_NAMESPACE
 
 class JobController;
 class HotkeyManager;
+class LinkIconFetcher;
 
 struct ProcessEntry
 {
@@ -27,6 +28,7 @@ struct ProcessEntry
     QString workDir;     // пусто — папка, где лежит программа
     bool    runAsAdmin = false;
     int     startDelaySec = 0;   // задержка от старта профиля
+    QString iconPath;            // своя иконка (картинка или .exe); пусто — по самому файлу
     QString bind;
     QString args;
     QString profile;
@@ -56,6 +58,10 @@ public:
     void    setWorkDir(const QString& id, const QString& dir);
     void    setRunAsAdmin(const QString& id, bool on);
     void    setStartDelay(const QString& id, int seconds);
+    void    setIcon(const QString& id, const QString& iconPath);
+    // Найти иконку ссылки (сайт или игра Steam). manual — по просьбе
+    // пользователя: заменить текущую иконку и сообщить, если не нашлась.
+    void    fetchLinkIcon(const QString& id, bool manual);
     void    setProgramProfile(const QString& id, const QString& profile);
 
     void start(const QString& id);
@@ -147,6 +153,8 @@ private:
     QTimer*                         m_pollTimer = nullptr;
     QTimer*                         m_launchTimer = nullptr;
     HotkeyManager*                  m_hotkeys = nullptr;
+    LinkIconFetcher*                m_iconFetcher = nullptr;
+    QSet<QString>                   m_manualIconFetch;
 };
 
 #endif
