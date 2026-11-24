@@ -25,7 +25,11 @@ QPixmap IconProvider::requestPixmap(const QString& id, QSize* size,
 
     QPixmap pm;
     const QFileInfo info(path);
-    if (info.exists()) {
+    if (path.contains(QLatin1String("://")) && !info.exists()) {
+        const QIcon icon = m_fileIcons.icon(QFileIconProvider::Network);
+        if (!icon.isNull())
+            pm = icon.pixmap(edge, edge);
+    } else if (info.exists()) {
         const QIcon icon = m_fileIcons.icon(info);
         if (!icon.isNull())
             pm = icon.pixmap(edge, edge);

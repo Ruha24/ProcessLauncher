@@ -64,8 +64,9 @@ Item {
                 onTextChanged: filteredModel.setSearchText(text)
             }
             AppButton {
-                text: qsTr("Add program")
-                onClicked: page.app.addProgram()
+                id: addButton
+                text: qsTr("Add…")
+                onClicked: page.app.showAddMenu(addButton)
             }
         }
 
@@ -123,17 +124,18 @@ Item {
                     horizontalAlignment: Text.AlignHCenter
                     wrapMode: Text.WordWrap
                     visible: searchField.text.length === 0
-                    text: qsTr("Add a program, or drop a file or shortcut onto this window. Then start it with one click or a hotkey.")
+                    text: qsTr("Add a program, script, folder or link — or drop it onto this window. Then start it with one click or a hotkey.")
                     color: Theme.textMuted
                     font.pixelSize: TypeScale.body
                 }
                 AppButton {
+                    id: emptyAddButton
                     Layout.alignment: Qt.AlignHCenter
                     Layout.topMargin: Theme.spaceS
                     visible: searchField.text.length === 0
-                    text: qsTr("Add program")
+                    text: qsTr("Add…")
                     variant: "primary"
-                    onClicked: page.app.addProgram()
+                    onClicked: page.app.showAddMenu(emptyAddButton)
                 }
             }
         }

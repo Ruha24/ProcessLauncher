@@ -144,6 +144,22 @@ ApplicationWindow {
     }
 
     function addProgram() { fileDialog.open() }
+
+    function showAddMenu(anchorItem) {
+        addMenu.popup(anchorItem, anchorItem.width - addMenu.implicitWidth,
+                      anchorItem.height + 4)
+    }
+
+    function addLink() {
+        askText(qsTr("Add link"),
+                qsTr("A website or an app link (steam://, discord://…). It opens in its app; the launcher doesn't track it."),
+                "https://github.com", "", qsTr("Add"),
+                function(t) {
+                    if (!processModel.addLink(t, window.activeProfile))
+                        window.toast(qsTr("That doesn't look like a link"), true)
+                    window.refreshCounts()
+                })
+    }
     function exportConfig() { exportDialog.open() }
     function importConfig() { importDialog.open() }
 
@@ -511,14 +527,40 @@ ApplicationWindow {
         id: fileDialog
         title: qsTr("Choose a program")
         nameFilters: Qt.platform.os === "windows"
-                     ? [qsTr("Programs and shortcuts (*.exe *.lnk *.url)"),
+                     ? [qsTr("Programs, scripts and shortcuts (*.exe *.bat *.cmd *.ps1 *.lnk *.url)"),
                         qsTr("Executables (*.exe)"),
+                        qsTr("Scripts (*.bat *.cmd *.ps1)"),
                         qsTr("Shortcuts (*.lnk *.url)"),
                         qsTr("All files (*)")]
                      : [qsTr("All files (*)")]
         onAccepted: {
             processModel.addProgramFromUrl(selectedFile, window.activeProfile)
             window.refreshCounts()
+        }
+    }
+
+    FolderDialog {
+        id: addFolderDialog
+        title: qsTr("Choose a folder")
+        onAccepted: {
+            processModel.addProgramFromUrl(selectedFolder, window.activeProfile)
+            window.refreshCounts()
+        }
+    }
+
+    AppMenu {
+        id: addMenu
+        AppMenuItem {
+            text: qsTr("Program or script…")
+            onTriggered: fileDialog.open()
+        }
+        AppMenuItem {
+            text: qsTr("Folder…")
+            onTriggered: addFolderDialog.open()
+        }
+        AppMenuItem {
+            text: qsTr("Link…")
+            onTriggered: window.addLink()
         }
     }
 

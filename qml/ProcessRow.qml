@@ -21,6 +21,9 @@ Item {
     required property string defaultWorkDir
     required property bool   runAsAdmin
     required property int    startDelay
+    required property string kind
+    // Папки и ссылки только открываются — процесса, за которым следить, нет.
+    readonly property bool openOnly: kind === "folder" || kind === "link"
 
     signal startRequested(string id)
     signal stopRequested(string id)
@@ -96,11 +99,12 @@ Item {
         id: rowMenu
 
         AppMenuItem {
-            text: row.running ? qsTr("Stop") : qsTr("Start")
+            text: row.openOnly ? qsTr("Open") : row.running ? qsTr("Stop") : qsTr("Start")
             onTriggered: row.running ? row.stopRequested(row.procId)
                                      : row.startRequested(row.procId)
         }
         AppMenuItem {
+            visible: !row.openOnly
             text: qsTr("Restart")
             enabled: row.running
             onTriggered: row.restartRequested(row.procId)
@@ -116,6 +120,7 @@ Item {
             onTriggered: row.editBindRequested(row.procId, row.bind, row.name)
         }
         AppMenuItem {
+            visible: !row.openOnly
             text: qsTr("Launch arguments…")
             onTriggered: row.editArgsRequested(row.procId, row.args)
         }
@@ -125,12 +130,13 @@ Item {
             onTriggered: row.editDelayRequested(row.procId, row.startDelay, row.name)
         }
         AppMenuItem {
+            visible: !row.openOnly
             text: qsTr("Working folder…")
             trailingText: row.workDir.length > 0 ? qsTr("custom") : ""
             onTriggered: row.chooseWorkDirRequested(row.procId, row.workDir, row.defaultWorkDir)
         }
         AppMenuItem {
-            visible: row.workDir.length > 0
+            visible: !row.openOnly && row.workDir.length > 0
             text: qsTr("Reset working folder")
             onTriggered: row.resetWorkDirRequested(row.procId)
         }
@@ -139,6 +145,7 @@ Item {
             onTriggered: row.editNoteRequested(row.procId, row.note)
         }
         AppMenuItem {
+            visible: !row.openOnly
             text: qsTr("Restart if it stops")
             checkable: true
             checked: row.watch
@@ -146,7 +153,7 @@ Item {
         }
         AppMenuItem {
             // Запуск от администратора есть только в Windows (UAC).
-            visible: Qt.platform.os === "windows"
+            visible: Qt.platform.os === "windows" && !row.openOnly
             text: qsTr("Run as administrator")
             checkable: true
             checked: row.runAsAdmin
@@ -158,11 +165,12 @@ Item {
             onTriggered: row.moveRequested(row.procId, row.profile)
         }
         AppMenuItem {
-            text: qsTr("Open file location")
+            visible: row.kind !== "link"
+            text: row.kind === "folder" ? qsTr("Open folder") : qsTr("Open file location")
             onTriggered: row.openFolderRequested(row.path)
         }
         AppMenuItem {
-            text: qsTr("Copy path")
+            text: row.kind === "link" ? qsTr("Copy link") : qsTr("Copy path")
             onTriggered: row.copyPathRequested(row.path)
         }
         AppMenuSeparator { }
@@ -315,7 +323,7 @@ Item {
         }
 
         AppButton {
-            text: row.running ? qsTr("Stop") : qsTr("Start")
+            text: row.openOnly ? qsTr("Open") : row.running ? qsTr("Stop") : qsTr("Start")
             minWidth: 68
             onClicked: row.running ? row.stopRequested(row.procId)
                                    : row.startRequested(row.procId)

@@ -145,10 +145,12 @@ void TrayController::addProgramActions(QMenu* menu, const QList<ProcessEntry>& e
     menu->setToolTipsVisible(true);
     for (const ProcessEntry& e : entries) {
         const bool running = m_manager->isRunning(e.id);
+        const bool openOnly = ProcessManager::isOpenOnly(e);
         // В Windows у пункта с иконкой галочка не рисуется, поэтому
         // запущенную программу отмечает зелёная точка на иконке.
         QAction* a = menu->addAction(programIcon(e.path, running), e.name);
-        a->setToolTip(running ? tr("Running — click to stop") : tr("Click to start"));
+        a->setToolTip(openOnly ? tr("Click to open")
+                      : running ? tr("Running — click to stop") : tr("Click to start"));
         const QString id = e.id;
         connect(a, &QAction::triggered, this, [this, id]() {
             if (!m_manager)
@@ -169,7 +171,9 @@ QIcon TrayController::programIcon(const QString& path, bool running)
         return *it;
 
     static QFileIconProvider provider;
-    QIcon base = QFileInfo::exists(path) ? provider.icon(QFileInfo(path)) : QIcon();
+    QIcon base = QFileInfo::exists(path) ? provider.icon(QFileInfo(path))
+               : ProcessManager::isLink(path) ? provider.icon(QFileIconProvider::Network)
+               : QIcon();
 
     if (!running) {
         cache.insert(path, base);

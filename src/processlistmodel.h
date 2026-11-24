@@ -29,6 +29,7 @@ public:
         DefaultWorkDirRole,
         AdminRole,
         StartDelayRole,
+        KindRole,
     };
     Q_ENUM(Role)
 
@@ -67,6 +68,8 @@ public:
     Q_INVOKABLE bool importConfig(const QUrl& url);
 
     Q_INVOKABLE void addProgramFromUrl(const QUrl& url, const QString& profile);
+    // Ссылка, введённая вручную; без схемы считается https://. false — не похоже на ссылку.
+    Q_INVOKABLE bool addLink(const QString& text, const QString& profile);
 
     Q_INVOKABLE void openFileLocation(const QString& path) const;
     Q_INVOKABLE void copyPath(const QString& path) const;

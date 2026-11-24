@@ -20,7 +20,8 @@ class HotkeyManager;
 struct ProcessEntry
 {
     QString id;
-    QString path;
+    QString path;        // файл программы/скрипта, папка или ссылка (URL)
+    QString kind = QStringLiteral("program");   // "program" | "folder" | "link"
     QString name;        // то, что видит пользователь: customName или имя файла без расширения
     QString customName;  // заданное пользователем имя; пусто — имя по умолчанию
     QString workDir;     // пусто — папка, где лежит программа
@@ -38,6 +39,11 @@ class ProcessManager : public QObject
     Q_OBJECT
 
 public:
+    // Ссылка вида scheme://… (https, steam и т. п.), а не путь к файлу.
+    static bool isLink(const QString& path);
+    // Папки и ссылки только открываются: процесса, за которым следить, нет.
+    static bool isOpenOnly(const ProcessEntry& e);
+
     explicit ProcessManager(QObject* parent = nullptr);
     ~ProcessManager() override;
 

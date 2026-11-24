@@ -61,6 +61,7 @@ QVariant ProcessListModel::data(const QModelIndex& index, int role) const
     case DefaultWorkDirRole: return QDir::toNativeSeparators(QFileInfo(e.path).absolutePath());
     case AdminRole:          return e.runAsAdmin;
     case StartDelayRole:     return e.startDelaySec;
+    case KindRole:           return e.kind;
     }
     return QVariant();
 }
@@ -82,6 +83,7 @@ QHash<int, QByteArray> ProcessListModel::roleNames() const
         {DefaultWorkDirRole, QByteArrayLiteral("defaultWorkDir")},
         {AdminRole,          QByteArrayLiteral("runAsAdmin")},
         {StartDelayRole,     QByteArrayLiteral("startDelay")},
+        {KindRole,           QByteArrayLiteral("kind")},
     };
 }
 
@@ -98,11 +100,36 @@ void ProcessListModel::addProgramFromUrl(const QUrl& url, const QString& profile
         m_manager->setProgramProfile(id, profile);
 }
 
+bool ProcessListModel::addLink(const QString& text, const QString& profile)
+{
+    QString t = text.trimmed();
+    if (t.isEmpty() || t.contains(QLatin1Char(' ')))
+        return false;
+    if (!ProcessManager::isLink(t))
+        t.prepend(QStringLiteral("https://"));
+    const QUrl url(t, QUrl::StrictMode);
+    if (!url.isValid()
+        || (url.host().isEmpty() && url.scheme().startsWith(QLatin1String("http"))))
+        return false;
+
+    const QString id = m_manager->addProgram(t, QString());
+    if (id.isEmpty())
+        return false;
+    if (!profile.isEmpty())
+        m_manager->setProgramProfile(id, profile);
+    return true;
+}
+
 void ProcessListModel::openFileLocation(const QString& path) const
 {
     const QFileInfo info(path);
     if (!info.exists())
         return;
+
+    if (info.isDir()) {
+        QDesktopServices::openUrl(QUrl::fromLocalFile(info.absoluteFilePath()));
+        return;
+    }
 
 #ifdef Q_OS_WIN
     QProcess::startDetached(QStringLiteral("explorer.exe"),

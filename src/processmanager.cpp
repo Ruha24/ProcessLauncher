@@ -16,6 +16,8 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QUrl>
+#include <QDesktopServices>
+#include <QRegularExpression>
 #include <algorithm>
 #include <utility>
 
@@ -31,9 +33,23 @@ const QString kProfilePrefix = QStringLiteral("profile:");
 
 QString defaultName(const QString& path)
 {
+    if (ProcessManager::isLink(path)) {
+        const QUrl url(path);
+        QString host = url.host();
+        if (host.startsWith(QLatin1String("www.")))
+            host = host.mid(4);
+        return host.isEmpty() ? path : host;
+    }
     const QFileInfo info(path);
+    if (info.isDir())
+        return info.fileName().isEmpty() ? QDir::toNativeSeparators(path) : info.fileName();
     const QString base = info.completeBaseName();
     return base.isEmpty() ? info.fileName() : base;
+}
+
+QString suffixOf(const QString& path)
+{
+    return QFileInfo(path).suffix().toLower();
 }
 
 QString effectiveName(const ProcessEntry& e)
@@ -384,6 +400,18 @@ void ProcessManager::syncProfileHotkey(const QString& name)
     }
 }
 
+bool ProcessManager::isLink(const QString& path)
+{
+    // Схема минимум из двух букв — чтобы "C:/…" не считалось ссылкой.
+    static const QRegularExpression re(QStringLiteral("^[A-Za-z][A-Za-z0-9+.-]+://"));
+    return re.match(path).hasMatch();
+}
+
+bool ProcessManager::isOpenOnly(const ProcessEntry& e)
+{
+    return e.kind == QLatin1String("folder") || e.kind == QLatin1String("link");
+}
+
 QString ProcessManager::addProgram(const QString& path, const QString& bind)
 {
     QString realPath = path;
@@ -401,13 +429,20 @@ QString ProcessManager::addProgram(const QString& path, const QString& bind)
         }
     }
 
-    const QFileInfo info(realPath);
-    if (realPath.isEmpty() || !info.exists() || !info.isFile())
-        return QString();
-
     ProcessEntry e;
+    if (isLink(realPath.trimmed())) {
+        e.path = realPath.trimmed();
+        e.kind = QStringLiteral("link");
+    } else {
+        const QFileInfo info(realPath);
+        if (realPath.isEmpty() || !info.exists())
+            return QString();
+        e.path = info.absoluteFilePath();
+        if (info.isDir())
+            e.kind = QStringLiteral("folder");
+    }
+
     e.id   = QUuid::createUuid().toString(QUuid::WithoutBraces);
-    e.path = info.absoluteFilePath();
     e.name = defaultName(e.path);
     e.bind = bind;
     e.profile = m_profiles.isEmpty() ? QStringLiteral("Default")
@@ -554,8 +589,20 @@ void ProcessManager::start(const QString& id)
         m_untracked.remove(id);
     }
 
+    if (it->kind == QLatin1String("link")) {
+        if (!QDesktopServices::openUrl(QUrl(it->path)))
+            emit errorOccurred(id, tr("%1: could not open link — %2").arg(it->name, it->path));
+        return;
+    }
+
     if (!QFileInfo::exists(it->path)) {
-        emit errorOccurred(id, tr("%1: file not found — %2").arg(it->name, it->path));
+        emit errorOccurred(id, tr("%1: not found — %2").arg(it->name, it->path));
+        return;
+    }
+
+    if (it->kind == QLatin1String("folder")) {
+        if (!QDesktopServices::openUrl(QUrl::fromLocalFile(it->path)))
+            emit errorOccurred(id, tr("%1: could not open folder").arg(it->name));
         return;
     }
 
@@ -577,10 +624,35 @@ void ProcessManager::start(const QString& id)
 #endif
 
     QProcess proc;
-    proc.setProgram(it->path);
     proc.setWorkingDirectory(workDir);
-    if (!it->args.trimmed().isEmpty())
-        proc.setArguments(QProcess::splitCommand(it->args));
+    const QString ext = suffixOf(it->path);
+    const QString nativePath = QDir::toNativeSeparators(it->path);
+    const QStringList userArgs = it->args.trimmed().isEmpty()
+                                     ? QStringList() : QProcess::splitCommand(it->args);
+#ifdef Q_OS_WIN
+    if (ext == QLatin1String("bat") || ext == QLatin1String("cmd")) {
+        // cmd /c ""путь" аргументы" — внешние кавычки cmd снимает сам,
+        // так путь с пробелами и аргументы доходят как есть.
+        proc.setProgram(QStringLiteral("cmd.exe"));
+        proc.setNativeArguments(QStringLiteral("/c \"\"%1\" %2\"")
+                                    .arg(nativePath, it->args.trimmed()));
+    } else if (ext == QLatin1String("ps1")) {
+        proc.setProgram(QStringLiteral("powershell.exe"));
+        proc.setArguments(QStringList{QStringLiteral("-NoProfile"),
+                                      QStringLiteral("-ExecutionPolicy"),
+                                      QStringLiteral("Bypass"),
+                                      QStringLiteral("-File"), nativePath} + userArgs);
+    } else
+#else
+    if (ext == QLatin1String("sh")) {
+        proc.setProgram(QStringLiteral("/bin/sh"));
+        proc.setArguments(QStringList{it->path} + userArgs);
+    } else
+#endif
+    {
+        proc.setProgram(it->path);
+        proc.setArguments(userArgs);
+    }
 
     qint64 pid = 0;
     if (!proc.startDetached(&pid) || pid <= 0) {
@@ -619,8 +691,20 @@ void ProcessManager::updatePollTimer()
 void ProcessManager::startElevated(const QString& id, const QString& workDir)
 {
     const ProcessEntry e = m_entries.value(id);
-    const std::wstring file = QDir::toNativeSeparators(e.path).toStdWString();
-    const std::wstring params = e.args.trimmed().toStdWString();
+    const QString nativePath = QDir::toNativeSeparators(e.path);
+    const QString ext = suffixOf(e.path);
+    QString program = nativePath;
+    QString paramStr = e.args.trimmed();
+    if (ext == QLatin1String("bat") || ext == QLatin1String("cmd")) {
+        program = QStringLiteral("cmd.exe");
+        paramStr = QStringLiteral("/c \"\"%1\" %2\"").arg(nativePath, e.args.trimmed());
+    } else if (ext == QLatin1String("ps1")) {
+        program = QStringLiteral("powershell.exe");
+        paramStr = QStringLiteral("-NoProfile -ExecutionPolicy Bypass -File \"%1\" %2")
+                       .arg(nativePath, e.args.trimmed()).trimmed();
+    }
+    const std::wstring file = program.toStdWString();
+    const std::wstring params = paramStr.toStdWString();
     const std::wstring dir = QDir::toNativeSeparators(workDir).toStdWString();
 
     SHELLEXECUTEINFOW sei{};
@@ -911,6 +995,8 @@ void ProcessManager::save() const
         };
         // Необязательные поля пишем только когда они заданы — конфиг
         // остаётся читаемым и совместимым со старыми версиями.
+        if (e.kind != QLatin1String("program"))
+            obj.insert(QStringLiteral("kind"), e.kind);
         if (!e.customName.isEmpty())
             obj.insert(QStringLiteral("name"), e.customName);
         if (!e.workDir.isEmpty())
@@ -1044,6 +1130,9 @@ void ProcessManager::load()
         if (e.id.isEmpty())
             e.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
         e.path = path;
+        const QString kind = obj.value(QStringLiteral("kind")).toString();
+        if (kind == QLatin1String("folder") || kind == QLatin1String("link"))
+            e.kind = kind;
         e.customName = obj.value(QStringLiteral("name")).toString().trimmed();
         e.name = effectiveName(e);
         e.workDir = obj.value(QStringLiteral("workDir")).toString();

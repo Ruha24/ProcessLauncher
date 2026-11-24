@@ -95,12 +95,14 @@ QString resolveUrlFile(const QString& path, bool* ok)
     QString localPath;
     if (url.isLocalFile())
         localPath = url.toLocalFile();
-    else if (!url.scheme().isEmpty() && url.scheme() != QLatin1String("file"))
-        localPath = QString();          // http(s) и прочее — не запускаемая программа
-    else
+    else if (!url.scheme().isEmpty() && url.scheme() != QLatin1String("file")) {
+        // http(s), steam:// и прочее — добавляется как ссылка.
+        if (ok) *ok = true;
+        return urlValue;
+    } else
         localPath = urlValue;           // голый путь без схемы
 
-    const bool valid = !localPath.isEmpty() && QFileInfo(localPath).isFile();
+    const bool valid = !localPath.isEmpty() && QFileInfo::exists(localPath);
     if (ok) *ok = valid;
     return valid ? localPath : QString();
 }
