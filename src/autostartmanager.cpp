@@ -4,6 +4,7 @@
 #include <QFileInfo>
 #include <QFile>
 #include <QDir>
+#include <QStandardPaths>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -13,6 +14,49 @@
 
 namespace {
 const QString kLinkName = QStringLiteral("ProcessLauncher.lnk");
+
+#ifdef Q_OS_WIN
+// Ярлык .lnk на сам лаунчер с заданными аргументами.
+bool writeShortcut(const QString& linkPath, const QString& arguments,
+                   const QString& description)
+{
+    const QString exePath = QDir::toNativeSeparators(
+        QCoreApplication::applicationFilePath());
+    const QString workDir = QDir::toNativeSeparators(
+        QFileInfo(exePath).absolutePath());
+
+    const HRESULT init = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+    const bool needUninit = (init == S_OK || init == S_FALSE);
+
+    bool ok = false;
+    IShellLinkW* link = nullptr;
+    if (SUCCEEDED(CoCreateInstance(CLSID_ShellLink, nullptr, CLSCTX_INPROC_SERVER,
+                                   IID_IShellLinkW,
+                                   reinterpret_cast<void**>(&link)))) {
+        link->SetPath(reinterpret_cast<const wchar_t*>(exePath.utf16()));
+        link->SetWorkingDirectory(
+            reinterpret_cast<const wchar_t*>(workDir.utf16()));
+        link->SetDescription(reinterpret_cast<const wchar_t*>(description.utf16()));
+        if (!arguments.isEmpty())
+            link->SetArguments(reinterpret_cast<const wchar_t*>(arguments.utf16()));
+        link->SetIconLocation(reinterpret_cast<const wchar_t*>(exePath.utf16()), 0);
+
+        IPersistFile* file = nullptr;
+        if (SUCCEEDED(link->QueryInterface(IID_IPersistFile,
+                                           reinterpret_cast<void**>(&file)))) {
+            const HRESULT saved = file->Save(
+                reinterpret_cast<const wchar_t*>(linkPath.utf16()), TRUE);
+            ok = SUCCEEDED(saved);
+            file->Release();
+        }
+        link->Release();
+    }
+
+    if (needUninit)
+        CoUninitialize();
+    return ok;
+}
+#endif
 }
 
 AutostartManager::AutostartManager(QObject* parent)
@@ -61,39 +105,7 @@ bool AutostartManager::createShortcut() const
     const QString linkPath = shortcutPath();
     if (linkPath.isEmpty())
         return false;
-
-    const QString exePath = QDir::toNativeSeparators(
-        QCoreApplication::applicationFilePath());
-    const QString workDir = QDir::toNativeSeparators(
-        QFileInfo(exePath).absolutePath());
-
-    const HRESULT init = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
-    const bool needUninit = (init == S_OK || init == S_FALSE);
-
-    bool ok = false;
-    IShellLinkW* link = nullptr;
-    if (SUCCEEDED(CoCreateInstance(CLSID_ShellLink, nullptr, CLSCTX_INPROC_SERVER,
-                                   IID_IShellLinkW,
-                                   reinterpret_cast<void**>(&link)))) {
-        link->SetPath(reinterpret_cast<const wchar_t*>(exePath.utf16()));
-        link->SetWorkingDirectory(
-            reinterpret_cast<const wchar_t*>(workDir.utf16()));
-        link->SetDescription(L"Process Launcher");
-
-        IPersistFile* file = nullptr;
-        if (SUCCEEDED(link->QueryInterface(IID_IPersistFile,
-                                           reinterpret_cast<void**>(&file)))) {
-            const HRESULT saved = file->Save(
-                reinterpret_cast<const wchar_t*>(linkPath.utf16()), TRUE);
-            ok = SUCCEEDED(saved);
-            file->Release();
-        }
-        link->Release();
-    }
-
-    if (needUninit)
-        CoUninitialize();
-    return ok;
+    return writeShortcut(linkPath, QString(), QStringLiteral("Process Launcher"));
 #elif defined(Q_OS_MACOS)
     const QString plistPath = shortcutPath();
     if (plistPath.isEmpty())
@@ -146,4 +158,29 @@ void AutostartManager::setEnabled(bool on)
             QFile::remove(path);
     }
     emit enabledChanged();
+}
+
+bool AutostartManager::createProfileShortcut(const QString& profile) const
+{
+#ifdef Q_OS_WIN
+    const QString desktop =
+        QStandardPaths::writableLocation(QStandardPaths::DesktopLocation);
+    if (desktop.isEmpty() || profile.trimmed().isEmpty())
+        return false;
+
+    // Символы, запрещённые в именах файлов, заменяем.
+    QString fileName = profile;
+    for (QChar& ch : fileName)
+        if (QStringLiteral("\\/:*?\"<>|").contains(ch))
+            ch = QLatin1Char('_');
+
+    QString args = profile;
+    args.replace(QLatin1Char('"'), QStringLiteral("\\\""));
+    return writeShortcut(QDir(desktop).absoluteFilePath(fileName + QStringLiteral(".lnk")),
+                         QStringLiteral("--profile \"%1\"").arg(args),
+                         QStringLiteral("Start profile “%1” in Process Launcher").arg(profile));
+#else
+    Q_UNUSED(profile);
+    return false;
+#endif
 }

@@ -17,6 +17,9 @@ public:
 
     Q_INVOKABLE void setEnabled(bool on);
 
+    // Ярлык на рабочем столе, запускающий профиль (ProcessLauncher --profile "…").
+    Q_INVOKABLE bool createProfileShortcut(const QString& profile) const;
+
 signals:
     void enabledChanged();
 

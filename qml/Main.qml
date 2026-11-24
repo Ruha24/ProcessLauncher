@@ -7,7 +7,7 @@ import Theme
 ApplicationWindow {
     id: window
 
-    visible: true
+    visible: !startHidden
     width: 940
     height: 640
     minimumWidth: 760
@@ -505,6 +505,16 @@ ApplicationWindow {
             text: qsTr("Hotkey…")
             trailingText: (window.styleVersion, processModel.profileBind(profileMenu.target))
             onTriggered: window.editProfileBind(profileMenu.target)
+        }
+        AppMenuItem {
+            visible: Qt.platform.os === "windows"
+            text: qsTr("Create desktop shortcut")
+            onTriggered: {
+                if (autostart.createProfileShortcut(profileMenu.target))
+                    window.toast(qsTr("Shortcut “%1” is on the desktop").arg(profileMenu.target), false)
+                else
+                    window.toast(qsTr("Could not create the shortcut"), true)
+            }
         }
         AppMenuSeparator { }
         AppMenuItem {
