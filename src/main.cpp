@@ -127,6 +127,7 @@ int main(int argc, char* argv[])
     filterModel.setSourceModel(&model);
 
     TrayController tray(nullptr);
+    tray.setProcessManager(&manager);
     AutostartManager autostart;
     StartupModel startupModel;
     WindowState windowState;
