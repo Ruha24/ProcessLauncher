@@ -60,6 +60,7 @@ QVariant ProcessListModel::data(const QModelIndex& index, int role) const
     case WorkDirRole:        return e.workDir;
     case DefaultWorkDirRole: return QDir::toNativeSeparators(QFileInfo(e.path).absolutePath());
     case AdminRole:          return e.runAsAdmin;
+    case StartDelayRole:     return e.startDelaySec;
     }
     return QVariant();
 }
@@ -80,6 +81,7 @@ QHash<int, QByteArray> ProcessListModel::roleNames() const
         {WorkDirRole,        QByteArrayLiteral("workDir")},
         {DefaultWorkDirRole, QByteArrayLiteral("defaultWorkDir")},
         {AdminRole,          QByteArrayLiteral("runAsAdmin")},
+        {StartDelayRole,     QByteArrayLiteral("startDelay")},
     };
 }
 
@@ -170,6 +172,11 @@ void ProcessListModel::setWorkDir(const QString& id, const QString& dir)
 void ProcessListModel::setRunAsAdmin(const QString& id, bool on)
 {
     m_manager->setRunAsAdmin(id, on);
+}
+
+void ProcessListModel::setStartDelay(const QString& id, int seconds)
+{
+    m_manager->setStartDelay(id, seconds);
 }
 
 void ProcessListModel::setProgramProfile(const QString& id, const QString& profile)

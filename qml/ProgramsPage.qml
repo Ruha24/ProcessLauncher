@@ -91,6 +91,7 @@ Item {
                 onChooseWorkDirRequested: (id, dir, defDir) => page.app.chooseWorkDir(id, dir, defDir)
                 onResetWorkDirRequested: (id) => processModel.setWorkDir(id, "")
                 onToggleAdminRequested: (id, on) => processModel.setRunAsAdmin(id, on)
+                onEditDelayRequested: (id, delay, name) => page.app.editStartDelay(id, delay, name)
                 onMoveRequested: (id, profile) => page.app.moveProgram(id, profile)
                 onRemoveRequested: (id, name) => page.app.confirmRemoveProgram(id, name)
                 onOpenFolderRequested: (path) => processModel.openFileLocation(path)

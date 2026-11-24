@@ -20,6 +20,7 @@ Item {
     required property string workDir
     required property string defaultWorkDir
     required property bool   runAsAdmin
+    required property int    startDelay
 
     signal startRequested(string id)
     signal stopRequested(string id)
@@ -32,6 +33,7 @@ Item {
     signal chooseWorkDirRequested(string id, string currentDir, string defaultDir)
     signal resetWorkDirRequested(string id)
     signal toggleAdminRequested(string id, bool on)
+    signal editDelayRequested(string id, int currentDelay, string name)
     signal moveRequested(string id, string currentProfile)
     signal removeRequested(string id, string name)
     signal openFolderRequested(string path)
@@ -116,6 +118,11 @@ Item {
         AppMenuItem {
             text: qsTr("Launch arguments…")
             onTriggered: row.editArgsRequested(row.procId, row.args)
+        }
+        AppMenuItem {
+            text: qsTr("Start delay…")
+            trailingText: row.startDelay > 0 ? qsTr("%1 s").arg(row.startDelay) : ""
+            onTriggered: row.editDelayRequested(row.procId, row.startDelay, row.name)
         }
         AppMenuItem {
             text: qsTr("Working folder…")
@@ -244,6 +251,25 @@ Item {
                            ? Text.ElideRight : Text.ElideMiddle
                 }
             }
+        }
+
+        Rectangle {
+            visible: row.startDelay > 0
+            implicitWidth: delayLabel.implicitWidth + 14
+            implicitHeight: 22
+            radius: 11
+            color: Theme.hover
+            Text {
+                id: delayLabel
+                anchors.centerIn: parent
+                text: qsTr("+%1 s").arg(row.startDelay)
+                color: Theme.textMuted
+                font.pixelSize: TypeScale.caption
+            }
+            HoverHandler { id: delayHover }
+            ToolTip.visible: delayHover.hovered
+            ToolTip.delay: 400
+            ToolTip.text: qsTr("Starts %1 s after the profile starts").arg(row.startDelay)
         }
 
         Rectangle {

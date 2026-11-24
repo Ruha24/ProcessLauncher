@@ -203,6 +203,20 @@ ApplicationWindow {
         workDirDialog.open()
     }
 
+    function editStartDelay(id, delay, name) {
+        askText(qsTr("Start delay for %1").arg(name),
+                qsTr("Seconds to wait after its profile starts, e.g. to let a VPN connect first. 0 — start right away. Starting the program on its own is never delayed."),
+                "0", delay > 0 ? delay.toString() : "", qsTr("Save"),
+                function(t) {
+                    var s = t.trim().length === 0 ? 0 : parseInt(t.trim(), 10)
+                    if (isNaN(s) || s < 0 || s > 3600 || String(s) !== (t.trim() || "0")) {
+                        window.toast(qsTr("Enter a number of seconds from 0 to 3600"), true)
+                        return
+                    }
+                    processModel.setStartDelay(id, s)
+                })
+    }
+
     function editNote(id, note) {
         askText(qsTr("Note"),
                 qsTr("Shown under the program name in the list."),

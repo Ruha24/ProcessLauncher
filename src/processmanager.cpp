@@ -244,11 +244,27 @@ void ProcessManager::setProgramProfile(const QString& id, const QString& profile
 
 void ProcessManager::startProfile(const QString& name)
 {
+    // entries() отсортирован по имени — порядок запуска предсказуем.
     QList<QString> ids;
-    const QList<QString> allIds = m_entries.keys();
-    for (const QString& id : allIds) {
-        if (m_entries.value(id).profile == name && !isRunning(id))
-            ids.append(id);
+    for (const ProcessEntry& e : entries()) {
+        if (e.profile != name || isRunning(e.id) || m_delayedStarts.contains(e.id))
+            continue;
+        if (e.startDelaySec <= 0) {
+            ids.append(e.id);
+            continue;
+        }
+
+        // Своя задержка: запускаем по таймеру, независимо от остальных.
+        auto* timer = new QTimer(this);
+        timer->setSingleShot(true);
+        const QString id = e.id;
+        connect(timer, &QTimer::timeout, this, [this, id]() {
+            cancelDelayedStart(id);
+            if (m_entries.contains(id) && !isRunning(id))
+                start(id);
+        });
+        m_delayedStarts.insert(id, timer);
+        timer->start(e.startDelaySec * 1000);
     }
 
     if (m_launchDelayMs <= 0) {
@@ -273,6 +289,16 @@ void ProcessManager::processLaunchQueue()
 
     if (!m_launchQueue.isEmpty())
         m_launchTimer->start(m_launchDelayMs);
+}
+
+bool ProcessManager::cancelDelayedStart(const QString& id)
+{
+    QTimer* timer = m_delayedStarts.take(id);
+    if (!timer)
+        return false;
+    timer->stop();
+    timer->deleteLater();
+    return true;
 }
 
 void ProcessManager::stopProfile(const QString& name)
@@ -481,6 +507,18 @@ void ProcessManager::setRunAsAdmin(const QString& id, bool on)
     emit listChanged();
 }
 
+void ProcessManager::setStartDelay(const QString& id, int seconds)
+{
+    auto it = m_entries.find(id);
+    const int s = qBound(0, seconds, 3600);
+    if (it == m_entries.end() || it->startDelaySec == s)
+        return;
+
+    it->startDelaySec = s;
+    save();
+    emit listChanged();
+}
+
 void ProcessManager::setArgs(const QString& id, const QString& args)
 {
     auto it = m_entries.find(id);
@@ -616,6 +654,10 @@ void ProcessManager::startElevated(const QString& id, const QString& workDir)
 
 void ProcessManager::stop(const QString& id)
 {
+    // Остановка отменяет и ещё не наступивший отложенный запуск.
+    cancelDelayedStart(id);
+    m_launchQueue.removeAll(id);
+
     bool wasRunning = false;
 
     if (auto jt = m_jobs.find(id); jt != m_jobs.end()) {
@@ -825,6 +867,9 @@ void ProcessManager::resetState()
 {
     m_hotkeys->clearAll();
     m_launchQueue.clear();
+    for (QTimer* t : std::as_const(m_delayedStarts))
+        t->deleteLater();
+    m_delayedStarts.clear();
     m_launchTimer->stop();
 
     m_entries.clear();
@@ -872,6 +917,8 @@ void ProcessManager::save() const
             obj.insert(QStringLiteral("workDir"), e.workDir);
         if (e.runAsAdmin)
             obj.insert(QStringLiteral("admin"), true);
+        if (e.startDelaySec > 0)
+            obj.insert(QStringLiteral("delay"), e.startDelaySec);
         programs.append(obj);
     }
 
@@ -1001,6 +1048,7 @@ void ProcessManager::load()
         e.name = effectiveName(e);
         e.workDir = obj.value(QStringLiteral("workDir")).toString();
         e.runAsAdmin = obj.value(QStringLiteral("admin")).toBool(false);
+        e.startDelaySec = qBound(0, obj.value(QStringLiteral("delay")).toInt(0), 3600);
         e.bind = obj.value(QStringLiteral("bind")).toString();
         e.args = obj.value(QStringLiteral("args")).toString();
         e.note = obj.value(QStringLiteral("note")).toString();
