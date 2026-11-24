@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.21)
 # Единственное место, где задаётся версия приложения: отсюда её берут сам
 # exe (проверка обновлений), установщик Windows и бандл macOS.
 # Тег релиза должен совпадать с этим числом — CI это проверяет.
-project(ProcessLauncher VERSION 1.5 LANGUAGES CXX)
+project(ProcessLauncher VERSION 1.6 LANGUAGES CXX)
 
 file(WRITE "${CMAKE_BINARY_DIR}/version.txt" "${PROJECT_VERSION}")
 
@@ -99,6 +99,12 @@ target_link_libraries(appProcessLauncher
         Qt6::Network
         themeplugin
 )
+
+# Исходники в UTF-8 (строки с «—», “…”); без этого MSVC читает их
+# в кодировке системы и портит часть символов.
+if(MSVC)
+    target_compile_options(appProcessLauncher PRIVATE /utf-8)
+endif()
 
 if(WIN32)
     target_sources(appProcessLauncher PRIVATE app.rc)
