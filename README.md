@@ -37,15 +37,19 @@ Schedule, Startup, Log and Settings.
 
 You can also drag a file, folder or .lnk/.url shortcut onto the window.
 Shortcuts are resolved automatically — the actual program (or website)
-is added, not the shortcut. Folders and links are only opened: they
-have no "running" state, so their button says "Open" instead of
-"Start".
+is added, not the shortcut; Steam game shortcuts keep their name and
+icon. Folders and links are only opened: they have no "running" state,
+so their button says "Open" instead of "Start". Links get their icon
+automatically: a website's icon, or a Steam game's
+(`steam://rungameid/…`) icon from Steam's cache.
 
 **Start and stop.** Use the "Start" button next to a program or
 double-click the row. The "⋯" button (or a right-click) opens the rest:
 
 - **Rename…** — your own name instead of the file name (leave it empty
   to go back to the file name);
+- **Change icon…** — your own icon: an image (.png, .jpg, .ico) or the
+  icon of any .exe; links also have "Get icon from link";
 - **Hotkey…**, **Launch arguments…**, note;
 - **Start delay…** — how many seconds after its profile starts the
   program is launched (e.g. VPN first, the client 5 seconds later).
