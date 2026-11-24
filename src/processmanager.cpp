@@ -19,9 +19,27 @@
 #include <algorithm>
 #include <utility>
 
+#ifdef Q_OS_WIN
+#include <windows.h>
+#include <shellapi.h>
+#include <string>
+#endif
+
 namespace {
 constexpr int kPollIntervalMs = 1200;
 const QString kProfilePrefix = QStringLiteral("profile:");
+
+QString defaultName(const QString& path)
+{
+    const QFileInfo info(path);
+    const QString base = info.completeBaseName();
+    return base.isEmpty() ? info.fileName() : base;
+}
+
+QString effectiveName(const ProcessEntry& e)
+{
+    return e.customName.isEmpty() ? defaultName(e.path) : e.customName;
+}
 }
 
 ProcessManager::ProcessManager(QObject* parent)
@@ -364,7 +382,7 @@ QString ProcessManager::addProgram(const QString& path, const QString& bind)
     ProcessEntry e;
     e.id   = QUuid::createUuid().toString(QUuid::WithoutBraces);
     e.path = info.absoluteFilePath();
-    e.name = info.fileName();
+    e.name = defaultName(e.path);
     e.bind = bind;
     e.profile = m_profiles.isEmpty() ? QStringLiteral("Default")
                                      : m_profiles.first();
@@ -410,6 +428,59 @@ void ProcessManager::setBind(const QString& id, const QString& bind)
     emit listChanged();
 }
 
+void ProcessManager::setCustomName(const QString& id, const QString& name)
+{
+    auto it = m_entries.find(id);
+    if (it == m_entries.end())
+        return;
+
+    QString n = name.trimmed();
+    if (n == defaultName(it->path))
+        n.clear();
+    if (it->customName == n)
+        return;
+
+    it->customName = n;
+    it->name = effectiveName(*it);
+    save();
+    emit listChanged();
+}
+
+void ProcessManager::setWorkDir(const QString& id, const QString& dir)
+{
+    auto it = m_entries.find(id);
+    if (it == m_entries.end())
+        return;
+
+    QString d = dir.trimmed();
+    if (d.startsWith(QStringLiteral("file:")))
+        d = QUrl(d).toLocalFile();
+    if (!d.isEmpty()) {
+        d = QDir::cleanPath(d);
+        if (d == QDir::cleanPath(QFileInfo(it->path).absolutePath()))
+            d.clear();
+        else
+            d = QDir::toNativeSeparators(d);
+    }
+    if (it->workDir == d)
+        return;
+
+    it->workDir = d;
+    save();
+    emit listChanged();
+}
+
+void ProcessManager::setRunAsAdmin(const QString& id, bool on)
+{
+    auto it = m_entries.find(id);
+    if (it == m_entries.end() || it->runAsAdmin == on)
+        return;
+
+    it->runAsAdmin = on;
+    save();
+    emit listChanged();
+}
+
 void ProcessManager::setArgs(const QString& id, const QString& args)
 {
     auto it = m_entries.find(id);
@@ -445,9 +516,31 @@ void ProcessManager::start(const QString& id)
         m_untracked.remove(id);
     }
 
+    if (!QFileInfo::exists(it->path)) {
+        emit errorOccurred(id, tr("%1: file not found — %2").arg(it->name, it->path));
+        return;
+    }
+
+    QString workDir = QFileInfo(it->path).absolutePath();
+    if (!it->workDir.isEmpty()) {
+        if (!QFileInfo(it->workDir).isDir()) {
+            emit errorOccurred(id, tr("%1: working folder not found — %2")
+                                       .arg(it->name, it->workDir));
+            return;
+        }
+        workDir = it->workDir;
+    }
+
+#ifdef Q_OS_WIN
+    if (it->runAsAdmin) {
+        startElevated(id, workDir);
+        return;
+    }
+#endif
+
     QProcess proc;
     proc.setProgram(it->path);
-    proc.setWorkingDirectory(QFileInfo(it->path).absolutePath());
+    proc.setWorkingDirectory(workDir);
     if (!it->args.trimmed().isEmpty())
         proc.setArguments(QProcess::splitCommand(it->args));
 
@@ -484,6 +577,43 @@ void ProcessManager::updatePollTimer()
         m_pollTimer->stop();
 }
 
+#ifdef Q_OS_WIN
+void ProcessManager::startElevated(const QString& id, const QString& workDir)
+{
+    const ProcessEntry e = m_entries.value(id);
+    const std::wstring file = QDir::toNativeSeparators(e.path).toStdWString();
+    const std::wstring params = e.args.trimmed().toStdWString();
+    const std::wstring dir = QDir::toNativeSeparators(workDir).toStdWString();
+
+    SHELLEXECUTEINFOW sei{};
+    sei.cbSize = sizeof(sei);
+    sei.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_FLAG_NO_UI;
+    sei.lpVerb = L"runas";
+    sei.lpFile = file.c_str();
+    sei.lpParameters = params.empty() ? nullptr : params.c_str();
+    sei.lpDirectory = dir.c_str();
+    sei.nShow = SW_SHOWNORMAL;
+
+    // Вызов ждёт, пока пользователь ответит в окне UAC.
+    if (!ShellExecuteExW(&sei) || !sei.hProcess) {
+        const DWORD err = GetLastError();
+        emit errorOccurred(id, err == ERROR_CANCELLED
+            ? tr("%1: launch as administrator was cancelled").arg(e.name)
+            : tr("%1: failed to start as administrator").arg(e.name));
+        return;
+    }
+
+    auto* job = new JobController();
+    job->setKillOnClose(m_killOnExit);
+    job->adoptProcessHandle(sei.hProcess);
+    m_jobs.insert(id, job);
+
+    m_startTimes.insert(id, QDateTime::currentDateTime());
+    updatePollTimer();
+    emit runStateChanged(id, true);
+}
+#endif
+
 void ProcessManager::stop(const QString& id)
 {
     bool wasRunning = false;
@@ -494,8 +624,19 @@ void ProcessManager::stop(const QString& id)
         m_jobs.erase(jt);
         wasRunning = true;
     }
-    if (m_untracked.remove(id))
+    if (const auto ut = m_untracked.constFind(id); ut != m_untracked.constEnd()) {
+        if (JobController::isPidAlive(ut.value())
+            && !JobController::terminatePid(ut.value())) {
+            // Процесс с правами администратора, к которому у нас нет доступа:
+            // честно говорим об этом и продолжаем следить за ним.
+            emit errorOccurred(id, tr("Can't stop %1: it runs with administrator "
+                                      "rights. Close it yourself.")
+                                       .arg(m_entries.value(id).name));
+            return;
+        }
+        m_untracked.remove(id);
         wasRunning = true;
+    }
 
     m_startTimes.remove(id);
     updatePollTimer();
@@ -709,7 +850,7 @@ void ProcessManager::save() const
     std::sort(ids.begin(), ids.end());
     for (const QString& id : ids) {
         const ProcessEntry& e = m_entries.value(id);
-        programs.append(QJsonObject{
+        QJsonObject obj{
             {QStringLiteral("id"),      e.id},
             {QStringLiteral("path"),    e.path},
             {QStringLiteral("bind"),    e.bind},
@@ -717,7 +858,16 @@ void ProcessManager::save() const
             {QStringLiteral("note"),    e.note},
             {QStringLiteral("profile"), e.profile},
             {QStringLiteral("watch"),   e.watch},
-        });
+        };
+        // Необязательные поля пишем только когда они заданы — конфиг
+        // остаётся читаемым и совместимым со старыми версиями.
+        if (!e.customName.isEmpty())
+            obj.insert(QStringLiteral("name"), e.customName);
+        if (!e.workDir.isEmpty())
+            obj.insert(QStringLiteral("workDir"), e.workDir);
+        if (e.runAsAdmin)
+            obj.insert(QStringLiteral("admin"), true);
+        programs.append(obj);
     }
 
     QJsonArray profilesArr;
@@ -842,7 +992,10 @@ void ProcessManager::load()
         if (e.id.isEmpty())
             e.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
         e.path = path;
-        e.name = QFileInfo(path).fileName();
+        e.customName = obj.value(QStringLiteral("name")).toString().trimmed();
+        e.name = effectiveName(e);
+        e.workDir = obj.value(QStringLiteral("workDir")).toString();
+        e.runAsAdmin = obj.value(QStringLiteral("admin")).toBool(false);
         e.bind = obj.value(QStringLiteral("bind")).toString();
         e.args = obj.value(QStringLiteral("args")).toString();
         e.note = obj.value(QStringLiteral("note")).toString();

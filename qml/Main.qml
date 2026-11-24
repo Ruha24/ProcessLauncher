@@ -189,6 +189,20 @@ ApplicationWindow {
                 function(t) { processModel.setArgs(id, t) })
     }
 
+    function renameProgram(id, name, defaultName) {
+        askText(qsTr("Rename program"),
+                qsTr("Leave empty to use the file name (%1).").arg(defaultName),
+                defaultName, name, qsTr("Rename"),
+                function(t) { processModel.setCustomName(id, t) })
+    }
+
+    function chooseWorkDir(id, dir, defaultDir) {
+        workDirDialog.targetId = id
+        var folder = (dir.length > 0 ? dir : defaultDir).replace(/\\/g, "/")
+        workDirDialog.currentFolder = (folder.startsWith("/") ? "file://" : "file:///") + folder
+        workDirDialog.open()
+    }
+
     function editNote(id, note) {
         askText(qsTr("Note"),
                 qsTr("Shown under the program name in the list."),
@@ -492,6 +506,13 @@ ApplicationWindow {
             processModel.addProgramFromUrl(selectedFile, window.activeProfile)
             window.refreshCounts()
         }
+    }
+
+    FolderDialog {
+        id: workDirDialog
+        property string targetId: ""
+        title: qsTr("Working folder")
+        onAccepted: processModel.setWorkDir(targetId, selectedFolder.toString())
     }
 
     FileDialog {

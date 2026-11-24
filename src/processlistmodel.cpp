@@ -53,6 +53,13 @@ QVariant ProcessListModel::data(const QModelIndex& index, int role) const
     case ProfileRole: return e.profile;
     case WatchRole:   return e.watch;
     case NoteRole:    return e.note;
+    case DefaultNameRole: {
+        const QFileInfo info(e.path);
+        return info.completeBaseName().isEmpty() ? info.fileName() : info.completeBaseName();
+    }
+    case WorkDirRole:        return e.workDir;
+    case DefaultWorkDirRole: return QDir::toNativeSeparators(QFileInfo(e.path).absolutePath());
+    case AdminRole:          return e.runAsAdmin;
     }
     return QVariant();
 }
@@ -69,6 +76,10 @@ QHash<int, QByteArray> ProcessListModel::roleNames() const
         {ProfileRole, QByteArrayLiteral("profile")},
         {WatchRole,   QByteArrayLiteral("watch")},
         {NoteRole,    QByteArrayLiteral("note")},
+        {DefaultNameRole,    QByteArrayLiteral("defaultName")},
+        {WorkDirRole,        QByteArrayLiteral("workDir")},
+        {DefaultWorkDirRole, QByteArrayLiteral("defaultWorkDir")},
+        {AdminRole,          QByteArrayLiteral("runAsAdmin")},
     };
 }
 
@@ -144,6 +155,21 @@ void ProcessListModel::setArgs(const QString& id, const QString& args)
 void ProcessListModel::setNote(const QString& id, const QString& note)
 {
     m_manager->setNote(id, note);
+}
+
+void ProcessListModel::setCustomName(const QString& id, const QString& name)
+{
+    m_manager->setCustomName(id, name);
+}
+
+void ProcessListModel::setWorkDir(const QString& id, const QString& dir)
+{
+    m_manager->setWorkDir(id, dir);
+}
+
+void ProcessListModel::setRunAsAdmin(const QString& id, bool on)
+{
+    m_manager->setRunAsAdmin(id, on);
 }
 
 void ProcessListModel::setProgramProfile(const QString& id, const QString& profile)

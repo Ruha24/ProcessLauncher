@@ -21,7 +21,10 @@ struct ProcessEntry
 {
     QString id;
     QString path;
-    QString name;
+    QString name;        // то, что видит пользователь: customName или имя файла без расширения
+    QString customName;  // заданное пользователем имя; пусто — имя по умолчанию
+    QString workDir;     // пусто — папка, где лежит программа
+    bool    runAsAdmin = false;
     QString bind;
     QString args;
     QString profile;
@@ -42,6 +45,9 @@ public:
     void    setBind(const QString& id, const QString& bind);
     void    setArgs(const QString& id, const QString& args);
     void    setNote(const QString& id, const QString& note);
+    void    setCustomName(const QString& id, const QString& name);
+    void    setWorkDir(const QString& id, const QString& dir);
+    void    setRunAsAdmin(const QString& id, bool on);
     void    setProgramProfile(const QString& id, const QString& profile);
 
     void start(const QString& id);
@@ -108,6 +114,9 @@ private:
     void resetState();
     void updatePollTimer();
     void handleExit(const QString& id);
+#ifdef Q_OS_WIN
+    void startElevated(const QString& id, const QString& workDir);
+#endif
     void syncHotkey(const QString& id);
     void syncProfileHotkey(const QString& name);
     QString profileHotkeyId(const QString& name) const;

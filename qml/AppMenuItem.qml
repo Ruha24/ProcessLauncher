@@ -9,6 +9,8 @@ MenuItem {
     property string trailingText: ""
 
     implicitHeight: 30
+    // Скрытый пункт не должен оставлять пустую строку в меню.
+    height: visible ? implicitHeight : 0
     padding: 0
     font.pixelSize: TypeScale.body
 

@@ -24,6 +24,10 @@ public:
         ProfileRole,
         WatchRole,
         NoteRole,
+        DefaultNameRole,
+        WorkDirRole,
+        DefaultWorkDirRole,
+        AdminRole,
     };
     Q_ENUM(Role)
 
@@ -39,6 +43,9 @@ public:
     Q_INVOKABLE bool isValidBind(const QString& bind) const;
     Q_INVOKABLE void setArgs(const QString& id, const QString& args);
     Q_INVOKABLE void setNote(const QString& id, const QString& note);
+    Q_INVOKABLE void setCustomName(const QString& id, const QString& name);
+    Q_INVOKABLE void setWorkDir(const QString& id, const QString& dir);
+    Q_INVOKABLE void setRunAsAdmin(const QString& id, bool on);
     Q_INVOKABLE void setProgramProfile(const QString& id, const QString& profile);
     Q_INVOKABLE void start(const QString& id);
     Q_INVOKABLE void stop(const QString& id);

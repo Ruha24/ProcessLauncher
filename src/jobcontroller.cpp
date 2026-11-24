@@ -52,8 +52,38 @@ bool JobController::assign(qint64 pid)
     return ok != FALSE;
 }
 
+void JobController::adoptProcessHandle(void* process)
+{
+    if (!process)
+        return;
+
+    if (!m_job) {
+        if (HANDLE job = CreateJobObject(nullptr, nullptr)) {
+            if (applyKillOnClose(job, m_killOnClose))
+                m_job = job;
+            else
+                CloseHandle(job);
+        }
+    }
+
+    if (m_job && AssignProcessToJobObject(static_cast<HANDLE>(m_job),
+                                          static_cast<HANDLE>(process))) {
+        CloseHandle(static_cast<HANDLE>(process));
+        return;
+    }
+
+    // В job не вышло: держим дескриптор процесса сами.
+    if (m_job) {
+        CloseHandle(static_cast<HANDLE>(m_job));
+        m_job = nullptr;
+    }
+    m_process = process;
+}
+
 bool JobController::isAlive() const
 {
+    if (m_process)
+        return WaitForSingleObject(static_cast<HANDLE>(m_process), 0) == WAIT_TIMEOUT;
     if (!m_job)
         return false;
 
@@ -68,10 +98,10 @@ bool JobController::isAlive() const
 
 void JobController::terminate()
 {
-    if (!m_job)
-        return;
-
-    TerminateJobObject(static_cast<HANDLE>(m_job), 1);
+    if (m_process)
+        TerminateProcess(static_cast<HANDLE>(m_process), 1);
+    else if (m_job)
+        TerminateJobObject(static_cast<HANDLE>(m_job), 1);
     closeHandle();
 }
 
@@ -80,6 +110,10 @@ void JobController::closeHandle()
     if (m_job) {
         CloseHandle(static_cast<HANDLE>(m_job));
         m_job = nullptr;
+    }
+    if (m_process) {
+        CloseHandle(static_cast<HANDLE>(m_process));
+        m_process = nullptr;
     }
 }
 
@@ -99,6 +133,19 @@ bool JobController::isPidAlive(qint64 pid)
     const BOOL ok = GetExitCodeProcess(hProc, &code);
     CloseHandle(hProc);
     return ok && code == STILL_ACTIVE;
+}
+
+bool JobController::terminatePid(qint64 pid)
+{
+    if (pid <= 0)
+        return false;
+
+    HANDLE hProc = OpenProcess(PROCESS_TERMINATE, FALSE, static_cast<DWORD>(pid));
+    if (!hProc)
+        return false;
+    const BOOL ok = TerminateProcess(hProc, 1);
+    CloseHandle(hProc);
+    return ok != FALSE;
 }
 
 #else
@@ -167,6 +214,13 @@ bool JobController::isPidAlive(qint64 pid)
     if (pid <= 0)
         return false;
     return kill(static_cast<pid_t>(pid), 0) == 0 || errno == EPERM;
+}
+
+bool JobController::terminatePid(qint64 pid)
+{
+    if (pid <= 0)
+        return false;
+    return kill(static_cast<pid_t>(pid), SIGTERM) == 0;
 }
 
 #endif

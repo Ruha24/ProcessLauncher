@@ -16,6 +16,10 @@ Item {
     required property string profile
     required property bool   watch
     required property string note
+    required property string defaultName
+    required property string workDir
+    required property string defaultWorkDir
+    required property bool   runAsAdmin
 
     signal startRequested(string id)
     signal stopRequested(string id)
@@ -24,6 +28,10 @@ Item {
     signal editNoteRequested(string id, string currentNote)
     signal editBindRequested(string id, string currentBind, string name)
     signal editArgsRequested(string id, string currentArgs)
+    signal renameRequested(string id, string currentName, string defaultName)
+    signal chooseWorkDirRequested(string id, string currentDir, string defaultDir)
+    signal resetWorkDirRequested(string id)
+    signal toggleAdminRequested(string id, bool on)
     signal moveRequested(string id, string currentProfile)
     signal removeRequested(string id, string name)
     signal openFolderRequested(string path)
@@ -97,6 +105,10 @@ Item {
         }
         AppMenuSeparator { }
         AppMenuItem {
+            text: qsTr("Rename…")
+            onTriggered: row.renameRequested(row.procId, row.name, row.defaultName)
+        }
+        AppMenuItem {
             text: qsTr("Hotkey…")
             trailingText: row.bind
             onTriggered: row.editBindRequested(row.procId, row.bind, row.name)
@@ -104,6 +116,16 @@ Item {
         AppMenuItem {
             text: qsTr("Launch arguments…")
             onTriggered: row.editArgsRequested(row.procId, row.args)
+        }
+        AppMenuItem {
+            text: qsTr("Working folder…")
+            trailingText: row.workDir.length > 0 ? qsTr("custom") : ""
+            onTriggered: row.chooseWorkDirRequested(row.procId, row.workDir, row.defaultWorkDir)
+        }
+        AppMenuItem {
+            visible: row.workDir.length > 0
+            text: qsTr("Reset working folder")
+            onTriggered: row.resetWorkDirRequested(row.procId)
         }
         AppMenuItem {
             text: row.note.length > 0 ? qsTr("Edit note…") : qsTr("Add note…")
@@ -114,6 +136,14 @@ Item {
             checkable: true
             checked: row.watch
             onTriggered: row.toggleWatchRequested(row.procId, !row.watch)
+        }
+        AppMenuItem {
+            // Запуск от администратора есть только в Windows (UAC).
+            visible: Qt.platform.os === "windows"
+            text: qsTr("Run as administrator")
+            checkable: true
+            checked: row.runAsAdmin
+            onTriggered: row.toggleAdminRequested(row.procId, !row.runAsAdmin)
         }
         AppMenuSeparator { }
         AppMenuItem {
@@ -213,6 +243,21 @@ Item {
                     elide: row.note.length > 0 || row.args.length > 0
                            ? Text.ElideRight : Text.ElideMiddle
                 }
+            }
+        }
+
+        Rectangle {
+            visible: row.runAsAdmin
+            implicitWidth: adminLabel.implicitWidth + 14
+            implicitHeight: 22
+            radius: 11
+            color: Theme.accentSoft
+            Text {
+                id: adminLabel
+                anchors.centerIn: parent
+                text: qsTr("Admin")
+                color: Theme.accent
+                font.pixelSize: TypeScale.caption
             }
         }
 
