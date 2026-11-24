@@ -26,6 +26,7 @@ signals:
 private:
     QString shortcutPath() const;
     bool createShortcut() const;
+    bool shortcutPointsHere() const;
 };
 
 #endif

@@ -6,6 +6,8 @@
 #include <QDir>
 #include <QStandardPaths>
 
+#include "shortcutresolver.h"
+
 #ifdef Q_OS_WIN
 #include <windows.h>
 #include <shlobj.h>
@@ -62,6 +64,26 @@ bool writeShortcut(const QString& linkPath, const QString& arguments,
 AutostartManager::AutostartManager(QObject* parent)
     : QObject(parent)
 {
+    // В старых версиях запись запускала лаунчер без --hidden — обновляем её.
+    // Только если она ведёт на этот же exe: иначе, скажем, отладочная сборка
+    // перехватила бы автозапуск установленной копии.
+    if (isEnabled() && shortcutPointsHere())
+        createShortcut();
+}
+
+bool AutostartManager::shortcutPointsHere() const
+{
+    const QString exe = QFileInfo(QCoreApplication::applicationFilePath()).canonicalFilePath();
+#ifdef Q_OS_WIN
+    bool ok = false;
+    const QString target = ShortcutResolver::resolve(shortcutPath(), &ok);
+    return ok && QFileInfo(target).canonicalFilePath().compare(exe, Qt::CaseInsensitive) == 0;
+#else
+    QFile f(shortcutPath());
+    if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
+        return false;
+    return QString::fromUtf8(f.readAll()).contains(QCoreApplication::applicationFilePath());
+#endif
 }
 
 bool AutostartManager::isAvailable() const
@@ -105,7 +127,9 @@ bool AutostartManager::createShortcut() const
     const QString linkPath = shortcutPath();
     if (linkPath.isEmpty())
         return false;
-    return writeShortcut(linkPath, QString(), QStringLiteral("Process Launcher"));
+    // При входе в систему лаунчер стартует сразу в трей, без окна.
+    return writeShortcut(linkPath, QStringLiteral("--hidden"),
+                         QStringLiteral("Process Launcher"));
 #elif defined(Q_OS_MACOS)
     const QString plistPath = shortcutPath();
     if (plistPath.isEmpty())
@@ -128,6 +152,7 @@ bool AutostartManager::createShortcut() const
             "    <key>ProgramArguments</key>\n"
             "    <array>\n"
             "        <string>%1</string>\n"
+            "        <string>--hidden</string>\n"
             "    </array>\n"
             "    <key>RunAtLoad</key>\n"
             "    <true/>\n"
