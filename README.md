@@ -44,7 +44,9 @@ automatically: a website's icon, or a Steam game's
 (`steam://rungameid/…`) icon from Steam's cache.
 
 **Start and stop.** Use the "Start" button next to a program or
-double-click the row. The "⋯" button (or a right-click) opens the rest:
+double-click the row. A running program shows how long it has been
+running and how much memory and CPU it uses, counting its child
+processes too. The "⋯" button (or a right-click) opens the rest:
 
 - **Rename…** — your own name instead of the file name (leave it empty
   to go back to the file name);
@@ -60,7 +62,12 @@ double-click the row. The "⋯" button (or a right-click) opens the rest:
 - **Run as administrator** (Windows) — starts it through the UAC
   prompt; such programs show an "Admin" badge and can still be stopped
   with "Stop";
+- **Duplicate** — a copy of the program right below it, e.g. to run
+  it with other arguments or keep it in another profile;
 - move to another profile, open file location, copy path, remove.
+
+**Order.** Drag a program by the handle on the left of its row to move
+it up or down. A profile starts its programs from top to bottom.
 
 **Tray.** Right-click the tray icon for a menu with all your profiles:
 each has "Start all", "Stop all" and its programs. Click a program to
@@ -90,7 +97,8 @@ is listed on the Log page.
 turn entries off or remove them. On Windows it is the same list Task
 Manager shows; on macOS these are your launch agents.
 
-**Settings.** Dark/light theme, opening the launcher with the system,
+**Settings.** Dark/light theme, interface language (English or
+Russian; by default, the system's), opening the launcher with the system,
 a profile to start when the launcher opens, what happens on close
 (stay in the tray or quit), whether quitting the launcher also closes
 the programs it started, timing, and export/import of everything to a
@@ -132,6 +140,8 @@ The profile menu's "Create desktop shortcut" uses `--profile`.
 | Run as administrator         | yes     | no    |
 | Command line                 | yes     | yes   |
 | Profile desktop shortcut     | yes     | no    |
+| Memory and CPU of programs   | yes     | yes   |
+| English and Russian UI       | yes     | yes   |
 | .lnk / .url resolution       | yes     | no    |
 
 \* On macOS the startup manager lists launch agents from
