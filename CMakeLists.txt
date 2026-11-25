@@ -110,7 +110,7 @@ if(WIN32)
     target_sources(appProcessLauncher PRIVATE app.rc)
     set_target_properties(appProcessLauncher PROPERTIES
         WIN32_EXECUTABLE TRUE)
-    target_link_libraries(appProcessLauncher PRIVATE shell32 ole32 uuid)
+    target_link_libraries(appProcessLauncher PRIVATE shell32 ole32 uuid psapi)
 endif()
 
 if(APPLE)

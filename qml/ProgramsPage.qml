@@ -80,7 +80,80 @@ Item {
             bottomMargin: Theme.spaceM
             ScrollBar.vertical: ScrollBar { }
 
+            // Перетаскивание строк: куда встанет программа (0…count).
+            property string dragId: ""
+            property int dragFrom: -1
+            property int dropIndex: -1
+            property real dragY: 0
+            readonly property bool reorderEnabled: searchField.text.length === 0 && count > 1
+
+            function updateDrop(y) {
+                dragY = y
+                var cy = y + contentY
+                var i = indexAt(width / 2, cy)
+                if (i < 0) {
+                    dropIndex = cy < 0 ? 0 : count
+                    return
+                }
+                var item = itemAtIndex(i)
+                dropIndex = (item && cy >= item.y + item.height / 2) ? i + 1 : i
+            }
+
+            function finishDrag(accepted) {
+                var id = dragId, from = dragFrom, to = dropIndex
+                dragId = ""; dragFrom = -1; dropIndex = -1
+                if (!accepted || id === "" || to < 0 || to === from || to === from + 1)
+                    return
+                var after = to >= count
+                var target = itemAtIndex(after ? count - 1 : to)
+                if (target)
+                    processModel.moveProgram(id, target.procId, after)
+            }
+
+            // У краёв списка он сам прокручивается, пока тянут строку.
+            Timer {
+                interval: 16
+                repeat: true
+                running: list.dragId !== ""
+                         && (list.dragY < 40 || list.dragY > list.height - 40)
+                onTriggered: {
+                    var step = list.dragY < 40 ? -8 : 8
+                    var maxY = Math.max(0, list.contentHeight + list.bottomMargin - list.height)
+                    list.contentY = Math.max(0, Math.min(maxY, list.contentY + step))
+                    list.updateDrop(list.dragY)
+                }
+            }
+
+            // Линия, куда встанет строка.
+            Rectangle {
+                visible: list.dragId !== "" && list.dropIndex >= 0
+                         && list.dropIndex !== list.dragFrom && list.dropIndex !== list.dragFrom + 1
+                x: Theme.spaceM
+                width: list.width - 2 * Theme.spaceM
+                height: 2
+                radius: 1
+                z: 10
+                color: Theme.accent
+                y: {
+                    if (!visible) return 0
+                    var last = list.dropIndex >= list.count
+                    var item = list.itemAtIndex(last ? list.count - 1 : list.dropIndex)
+                    if (!item) return 0
+                    return (last ? item.y + item.height : item.y) - 1
+                }
+            }
+
             delegate: ProcessRow {
+                reorderEnabled: list.reorderEnabled
+                dragging: list.dragId === procId
+                onDragStarted: (id) => {
+                    list.dragId = id
+                    list.dragFrom = index
+                    list.dropIndex = index
+                }
+                onDragMoved: (y) => list.updateDrop(y)
+                onDragFinished: (accepted) => list.finishDrag(accepted)
+                onDuplicateRequested: (id) => { processModel.duplicateProgram(id); page.app.refreshCounts() }
                 onStartRequested: (id) => { processModel.start(id); page.app.refreshCounts() }
                 onStopRequested: (id) => { processModel.stop(id); page.app.refreshCounts() }
                 onRestartRequested: (id) => { processModel.restart(id); page.app.refreshCounts() }

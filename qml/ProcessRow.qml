@@ -26,6 +26,9 @@ Item {
     required property bool   hasCustomIcon
     // Папки и ссылки только открываются — процесса, за которым следить, нет.
     readonly property bool openOnly: kind === "folder" || kind === "link"
+    // Перетаскивание за ручку слева. Строку двигает список (ProgramsPage).
+    property bool reorderEnabled: false
+    property bool dragging: false
 
     signal startRequested(string id)
     signal stopRequested(string id)
@@ -44,8 +47,13 @@ Item {
     signal removeRequested(string id, string name)
     signal openFolderRequested(string path)
     signal copyPathRequested(string path)
+    signal duplicateRequested(string id)
+    signal dragStarted(string id)
+    signal dragMoved(real y)        // в координатах ListView
+    signal dragFinished(bool accepted)
 
     property string uptimeText: ""
+    property string usageText: ""
 
     function formatUptime(secs) {
         if (secs <= 0) return ""
@@ -57,8 +65,25 @@ Item {
         return s + " s"
     }
 
+    function formatMemory(bytes) {
+        if (bytes < 0) return ""
+        var mb = bytes / (1024 * 1024)
+        if (mb >= 1024) return qsTr("%1 GB").arg((mb / 1024).toFixed(1))
+        return qsTr("%1 MB").arg(mb >= 100 ? Math.round(mb) : mb.toFixed(1))
+    }
+
     function refreshUptime() {
         uptimeText = running ? formatUptime(processModel.uptimeSeconds(procId)) : ""
+        if (!running || openOnly) {
+            usageText = ""
+            return
+        }
+        var parts = []
+        var mem = formatMemory(processModel.memoryBytes(procId))
+        if (mem.length > 0) parts.push(mem)
+        var cpu = processModel.cpuPercent(procId)
+        if (cpu >= 0) parts.push(qsTr("CPU %1%").arg(cpu < 10 ? cpu.toFixed(1) : Math.round(cpu)))
+        usageText = parts.join(" · ")
     }
 
     onRunningChanged: refreshUptime()
@@ -72,6 +97,7 @@ Item {
 
     implicitHeight: 56
     width: ListView.view ? ListView.view.width : implicitWidth
+    opacity: dragging ? 0.45 : 1
 
     Rectangle {
         anchors.fill: parent
@@ -85,6 +111,50 @@ Item {
     }
 
     HoverHandler { id: hover }
+
+    // Ручка перетаскивания: шесть точек в левом поле строки.
+    Item {
+        id: grip
+        x: Theme.spaceM
+        width: Theme.spaceXL - Theme.spaceM
+        height: parent.height
+        visible: row.reorderEnabled
+        opacity: hover.hovered || gripArea.pressed ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
+
+        Grid {
+            anchors.centerIn: parent
+            columns: 2
+            spacing: 2
+            Repeater {
+                model: 6
+                Rectangle {
+                    width: 3; height: 3; radius: 1.5
+                    color: gripArea.containsMouse || gripArea.pressed ? Theme.textMuted
+                                                                      : Theme.textFaint
+                }
+            }
+        }
+
+        MouseArea {
+            id: gripArea
+            anchors.fill: parent
+            hoverEnabled: true
+            preventStealing: true
+            cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+            onPressed: row.dragStarted(row.procId)
+            onPositionChanged: (mouse) => {
+                if (pressed && row.ListView.view)
+                    row.dragMoved(mapToItem(row.ListView.view, mouse.x, mouse.y).y)
+            }
+            onReleased: row.dragFinished(true)
+            onCanceled: row.dragFinished(false)
+
+            ToolTip.visible: containsMouse && !pressed
+            ToolTip.delay: 700
+            ToolTip.text: qsTr("Drag to reorder")
+        }
+    }
 
     TapHandler {
         acceptedButtons: Qt.LeftButton
@@ -178,6 +248,10 @@ Item {
         }
         AppMenuSeparator { }
         AppMenuItem {
+            text: qsTr("Duplicate")
+            onTriggered: row.duplicateRequested(row.procId)
+        }
+        AppMenuItem {
             text: qsTr("Move to profile…")
             onTriggered: row.moveRequested(row.procId, row.profile)
         }
@@ -263,6 +337,19 @@ Item {
                           ? qsTr("Running for %1").arg(row.uptimeText) : qsTr("Running")
                     color: Theme.running
                     font.pixelSize: TypeScale.caption
+                }
+                // Память и процессор вместе с дочерними процессами.
+                Text {
+                    visible: row.usageText.length > 0
+                    text: row.usageText
+                    color: Theme.textMuted
+                    font.pixelSize: TypeScale.caption
+                    font.features: { "tnum": 1 }
+
+                    HoverHandler { id: usageHover }
+                    ToolTip.visible: usageHover.hovered
+                    ToolTip.delay: 500
+                    ToolTip.text: qsTr("Memory and CPU, including child processes")
                 }
                 Text {
                     Layout.fillWidth: true

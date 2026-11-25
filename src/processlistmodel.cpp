@@ -155,6 +155,16 @@ int ProcessListModel::uptimeSeconds(const QString& id) const
     return m_manager->uptimeSeconds(id);
 }
 
+double ProcessListModel::cpuPercent(const QString& id) const
+{
+    return m_manager->cpuPercent(id);
+}
+
+double ProcessListModel::memoryBytes(const QString& id) const
+{
+    return double(m_manager->memoryBytes(id));
+}
+
 int ProcessListModel::profileRunningCount(const QString& name) const
 {
     return m_manager->profileRunningCount(name);
@@ -395,4 +405,14 @@ void ProcessListModel::onErrorOccurred(const QString& id, const QString& message
 {
     Q_UNUSED(id)
     emit errorMessage(message);
+}
+
+void ProcessListModel::moveProgram(const QString& id, const QString& targetId, bool after)
+{
+    m_manager->moveProgram(id, targetId, after);
+}
+
+void ProcessListModel::duplicateProgram(const QString& id)
+{
+    m_manager->duplicateProgram(id);
 }

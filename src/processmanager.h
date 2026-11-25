@@ -9,6 +9,7 @@
 #include <QString>
 #include <QStringList>
 #include <QDateTime>
+#include <QElapsedTimer>
 
 QT_BEGIN_NAMESPACE
 class QProcess;
@@ -35,6 +36,7 @@ struct ProcessEntry
     QString profile;
     bool    watch = false;
     QString note;
+    int     order = -1;      // место в списке, задаёт и порядок запуска профиля
     // Поля, которых эта версия не знает (их записала более новая). Сохраняем
     // как есть, чтобы запуск старой копии не стирал чужие настройки.
     QJsonObject extra;
@@ -67,6 +69,10 @@ public:
     // пользователя: заменить текущую иконку и сообщить, если не нашлась.
     void    fetchLinkIcon(const QString& id, bool manual);
     void    setProgramProfile(const QString& id, const QString& profile);
+    // Поставить программу на место targetId: перед ней или (after) после.
+    void    moveProgram(const QString& id, const QString& targetId, bool after);
+    // Копия программы сразу под оригиналом; горячая клавиша не копируется.
+    QString duplicateProgram(const QString& id);
 
     void start(const QString& id);
     void stop(const QString& id);
@@ -101,6 +107,10 @@ public:
 
     bool isRunning(const QString& id) const;
     int  uptimeSeconds(const QString& id) const;
+    // Нагрузка запущенной программы вместе с дочерними процессами.
+    // -1 — пока неизвестно (CPU считается по разнице, нужен второй замер).
+    double cpuPercent(const QString& id) const;
+    qint64 memoryBytes(const QString& id) const;
     int  profileRunningCount(const QString& name) const;
     int  profileTotalCount(const QString& name) const;
 
@@ -131,9 +141,12 @@ private:
     void save() const;
     void load();
     void resetState();
+    // Пронумеровать order подряд в порядке ids (остальные — следом, как были).
+    void renumber(const QStringList& ids);
     void updatePollTimer();
     void handleExit(const QString& id);
     bool cancelDelayedStart(const QString& id);
+    void sampleUsage();
 #ifdef Q_OS_WIN
     void startElevated(const QString& id, const QString& workDir);
 #endif
@@ -160,6 +173,15 @@ private:
     HotkeyManager*                  m_hotkeys = nullptr;
     LinkIconFetcher*                m_iconFetcher = nullptr;
     QSet<QString>                   m_manualIconFetch;
+
+    struct UsageSample {
+        qint64 cpuNs = -1;        // процессорное время на момент замера
+        qint64 atMs = -1;         // когда замеряли (m_clock)
+        double cpuPercent = -1;
+        qint64 memBytes = -1;
+    };
+    QHash<QString, UsageSample>     m_usage;
+    QElapsedTimer                   m_clock;
 };
 
 #endif

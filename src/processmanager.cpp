@@ -19,6 +19,7 @@
 #include <QUrl>
 #include <QDesktopServices>
 #include <QRegularExpression>
+#include <QThread>
 #include <algorithm>
 #include <utility>
 
@@ -82,6 +83,7 @@ ProcessManager::ProcessManager(QObject* parent)
             setIcon(id, iconPath);
     });
 
+    m_clock.start();
     m_pollTimer->setInterval(kPollIntervalMs);
     connect(m_pollTimer, &QTimer::timeout, this, &ProcessManager::pollJobs);
 
@@ -278,7 +280,7 @@ void ProcessManager::setProgramProfile(const QString& id, const QString& profile
 
 void ProcessManager::startProfile(const QString& name)
 {
-    // entries() отсортирован по имени — порядок запуска предсказуем.
+    // entries() идёт в порядке списка — программы стартуют сверху вниз.
     QList<QString> ids;
     for (const ProcessEntry& e : entries()) {
         if (e.profile != name || isRunning(e.id) || m_delayedStarts.contains(e.id))
@@ -473,6 +475,9 @@ QString ProcessManager::addProgram(const QString& path, const QString& bind)
     e.bind = bind;
     e.profile = m_profiles.isEmpty() ? QStringLiteral("Default")
                                      : m_profiles.first();
+    e.order = 0;
+    for (const ProcessEntry& other : std::as_const(m_entries))
+        e.order = qMax(e.order, other.order + 1);
 
     m_entries.insert(e.id, e);
     syncHotkey(e.id);
@@ -947,11 +952,63 @@ QString ProcessManager::programName(const QString& id) const
     return m_entries.value(id).name;
 }
 
+void ProcessManager::renumber(const QStringList& ids)
+{
+    int n = 0;
+    for (const QString& id : ids) {
+        auto it = m_entries.find(id);
+        if (it != m_entries.end())
+            it->order = n++;
+    }
+}
+
+void ProcessManager::moveProgram(const QString& id, const QString& targetId, bool after)
+{
+    if (id == targetId || !m_entries.contains(id) || !m_entries.contains(targetId))
+        return;
+
+    QStringList ids;
+    for (const ProcessEntry& e : entries())
+        ids.append(e.id);
+    ids.removeOne(id);
+    const int at = ids.indexOf(targetId) + (after ? 1 : 0);
+    ids.insert(at, id);
+
+    renumber(ids);
+    save();
+    emit listChanged();
+}
+
+QString ProcessManager::duplicateProgram(const QString& id)
+{
+    if (!m_entries.contains(id))
+        return QString();
+
+    ProcessEntry copy = m_entries.value(id);
+    copy.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    copy.customName = tr("%1 (copy)").arg(copy.name);
+    copy.name = copy.customName;
+    copy.bind.clear();   // одна клавиша не может запускать две программы
+
+    QStringList ids;
+    for (const ProcessEntry& e : entries())
+        ids.append(e.id);
+    ids.insert(ids.indexOf(id) + 1, copy.id);
+
+    m_entries.insert(copy.id, copy);
+    renumber(ids);
+    save();
+    emit listChanged();
+    return copy.id;
+}
+
 QList<ProcessEntry> ProcessManager::entries() const
 {
     QList<ProcessEntry> result = m_entries.values();
     std::sort(result.begin(), result.end(),
               [](const ProcessEntry& a, const ProcessEntry& b) {
+                  if (a.order != b.order)
+                      return a.order < b.order;
                   if (a.name != b.name)
                       return a.name.compare(b.name, Qt::CaseInsensitive) < 0;
                   return a.id < b.id;
@@ -974,8 +1031,46 @@ void ProcessManager::pollJobs()
     for (const QString& id : finished)
         handleExit(id);
 
+    sampleUsage();
     updatePollTimer();
     emit tick();
+}
+
+void ProcessManager::sampleUsage()
+{
+    const qint64 now = m_clock.elapsed();
+    const int cores = qMax(1, QThread::idealThreadCount());
+
+    auto update = [&](const QString& id, const JobController::Usage& u) {
+        UsageSample& s = m_usage[id];
+        // Чаще раза в секунду не меряем: на коротком отрезке процент скачет.
+        if (s.atMs >= 0 && now - s.atMs < 900)
+            return;
+        if (u.cpuNs >= 0 && s.cpuNs >= 0 && u.cpuNs >= s.cpuNs && now > s.atMs) {
+            // Как в Диспетчере задач: 100 % — все ядра заняты полностью.
+            const double busy = double(u.cpuNs - s.cpuNs) / (double(now - s.atMs) * 1e6);
+            s.cpuPercent = qBound(0.0, busy / cores * 100.0, 100.0);
+        }
+        s.cpuNs = u.cpuNs;
+        s.atMs = now;
+        s.memBytes = u.memBytes;
+    };
+
+    for (auto it = m_jobs.constBegin(); it != m_jobs.constEnd(); ++it)
+        update(it.key(), it.value()->usage());
+    for (auto it = m_untracked.constBegin(); it != m_untracked.constEnd(); ++it)
+        if (!m_jobs.contains(it.key()))
+            update(it.key(), JobController::pidUsage(it.value()));
+}
+
+double ProcessManager::cpuPercent(const QString& id) const
+{
+    return m_usage.value(id).cpuPercent;
+}
+
+qint64 ProcessManager::memoryBytes(const QString& id) const
+{
+    return m_usage.value(id).memBytes;
 }
 
 void ProcessManager::handleExit(const QString& id)
@@ -986,6 +1081,7 @@ void ProcessManager::handleExit(const QString& id)
     }
     m_untracked.remove(id);
     m_startTimes.remove(id);
+    m_usage.remove(id);
 
     const auto e = m_entries.constFind(id);
     const bool shouldWatch = (e != m_entries.constEnd() && e->watch);
@@ -1055,6 +1151,7 @@ void ProcessManager::save() const
         obj.insert(QStringLiteral("note"),    e.note);
         obj.insert(QStringLiteral("profile"), e.profile);
         obj.insert(QStringLiteral("watch"),   e.watch);
+        obj.insert(QStringLiteral("order"),   e.order);
         // Необязательные поля пишем только когда они заданы — конфиг
         // остаётся читаемым и совместимым со старыми версиями.
         if (e.kind != QLatin1String("program"))
@@ -1212,6 +1309,7 @@ void ProcessManager::load()
         e.note = obj.value(QStringLiteral("note")).toString();
         e.profile = obj.value(QStringLiteral("profile")).toString();
         e.watch = obj.value(QStringLiteral("watch")).toBool(false);
+        e.order = obj.value(QStringLiteral("order")).toInt(-1);
         if (e.profile.isEmpty() || !m_profiles.contains(e.profile))
             e.profile = m_profiles.first();
         if (!e.bind.isEmpty() && !HotkeyManager::isValidBind(e.bind))
@@ -1219,7 +1317,8 @@ void ProcessManager::load()
 
         e.extra = obj;
         for (const char* key : {"id", "path", "kind", "name", "workDir", "admin", "delay",
-                                "icon", "bind", "args", "note", "profile", "watch"})
+                                "icon", "bind", "args", "note", "profile", "watch",
+                                "order"})
             e.extra.remove(QLatin1String(key));
 
         m_entries.insert(e.id, e);
@@ -1228,6 +1327,26 @@ void ProcessManager::load()
 
     for (const QString& name : m_profiles)
         syncProfileHotkey(name);
+
+    // В конфигах до 1.7 порядка нет: программы без него встают после
+    // остальных по алфавиту, затем номера идут подряд.
+    {
+        QList<ProcessEntry> sorted = m_entries.values();
+        std::sort(sorted.begin(), sorted.end(),
+                  [](const ProcessEntry& a, const ProcessEntry& b) {
+                      const bool aHas = a.order >= 0, bHas = b.order >= 0;
+                      if (aHas != bHas)
+                          return aHas;
+                      if (aHas && a.order != b.order)
+                          return a.order < b.order;
+                      const int c = a.name.compare(b.name, Qt::CaseInsensitive);
+                      return c != 0 ? c < 0 : a.id < b.id;
+                  });
+        QStringList ids;
+        for (const ProcessEntry& e : sorted)
+            ids.append(e.id);
+        renumber(ids);
+    }
 
     // Ссылки без иконки: игры Steam берут её из локального кеша Steam, сайты —
     // из сети. Так иконки возвращаются, даже если конфиг перезаписала старая

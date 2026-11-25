@@ -6,6 +6,13 @@
 class JobController
 {
 public:
+    // Сколько ресурсов занимают процессы: процессорное время с запуска (нс)
+    // и память. -1 — узнать не удалось.
+    struct Usage {
+        qint64 cpuNs = -1;
+        qint64 memBytes = -1;
+    };
+
     JobController();
     ~JobController();
 
@@ -23,6 +30,11 @@ public:
 #endif
 
     bool isAlive() const;
+
+    // Все процессы под контролем: в Windows — весь job (с дочерними),
+    // в macOS — группа процессов.
+    Usage usage() const;
+    static Usage pidUsage(qint64 pid);
 
     void terminate();
 

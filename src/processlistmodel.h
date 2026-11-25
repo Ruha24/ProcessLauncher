@@ -53,6 +53,8 @@ public:
     Q_INVOKABLE void setStartDelay(const QString& id, int seconds);
     Q_INVOKABLE void setIcon(const QString& id, const QString& iconPath);
     Q_INVOKABLE void fetchLinkIcon(const QString& id);
+    Q_INVOKABLE void moveProgram(const QString& id, const QString& targetId, bool after);
+    Q_INVOKABLE void duplicateProgram(const QString& id);
     Q_INVOKABLE void setProgramProfile(const QString& id, const QString& profile);
     Q_INVOKABLE void start(const QString& id);
     Q_INVOKABLE void stop(const QString& id);
@@ -92,6 +94,8 @@ public:
     Q_INVOKABLE void setProfileIcon(const QString& name, const QString& icon);
 
     Q_INVOKABLE int uptimeSeconds(const QString& id) const;
+    Q_INVOKABLE double cpuPercent(const QString& id) const;
+    Q_INVOKABLE double memoryBytes(const QString& id) const;
     Q_INVOKABLE int profileRunningCount(const QString& name) const;
     Q_INVOKABLE int profileTotalCount(const QString& name) const;
 
