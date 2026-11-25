@@ -2,6 +2,7 @@
 #define PROCESSMANAGER_H
 
 #include <QObject>
+#include <QJsonObject>
 #include <QHash>
 #include <QSet>
 #include <QList>
@@ -34,6 +35,9 @@ struct ProcessEntry
     QString profile;
     bool    watch = false;
     QString note;
+    // Поля, которых эта версия не знает (их записала более новая). Сохраняем
+    // как есть, чтобы запуск старой копии не стирал чужие настройки.
+    QJsonObject extra;
 };
 
 class ProcessManager : public QObject
@@ -145,6 +149,7 @@ private:
     QHash<QString, QString>         m_profileBinds;
     QHash<QString, QString>         m_profileColors;
     QHash<QString, QString>         m_profileIcons;
+    QJsonObject                     m_extraRoot;   // незнакомые поля конфига — см. ProcessEntry::extra
     int                             m_launchDelayMs = 0;
     bool                            m_killOnExit = true;
     QString                         m_autoStartProfile;

@@ -1023,6 +1023,7 @@ void ProcessManager::resetState()
     m_profileBinds.clear();
     m_profileColors.clear();
     m_profileIcons.clear();
+    m_extraRoot = QJsonObject();
     m_launchDelayMs = 0;
     m_autoStartProfile.clear();
 }
@@ -1046,15 +1047,14 @@ void ProcessManager::save() const
     std::sort(ids.begin(), ids.end());
     for (const QString& id : ids) {
         const ProcessEntry& e = m_entries.value(id);
-        QJsonObject obj{
-            {QStringLiteral("id"),      e.id},
-            {QStringLiteral("path"),    e.path},
-            {QStringLiteral("bind"),    e.bind},
-            {QStringLiteral("args"),    e.args},
-            {QStringLiteral("note"),    e.note},
-            {QStringLiteral("profile"), e.profile},
-            {QStringLiteral("watch"),   e.watch},
-        };
+        QJsonObject obj = e.extra;
+        obj.insert(QStringLiteral("id"),      e.id);
+        obj.insert(QStringLiteral("path"),    e.path);
+        obj.insert(QStringLiteral("bind"),    e.bind);
+        obj.insert(QStringLiteral("args"),    e.args);
+        obj.insert(QStringLiteral("note"),    e.note);
+        obj.insert(QStringLiteral("profile"), e.profile);
+        obj.insert(QStringLiteral("watch"),   e.watch);
         // Необязательные поля пишем только когда они заданы — конфиг
         // остаётся читаемым и совместимым со старыми версиями.
         if (e.kind != QLatin1String("program"))
@@ -1088,15 +1088,14 @@ void ProcessManager::save() const
     for (auto it = m_profileIcons.constBegin(); it != m_profileIcons.constEnd(); ++it)
         profileIconsObj.insert(it.key(), it.value());
 
-    const QJsonObject root{
-        {QStringLiteral("programs"),     programs},
-        {QStringLiteral("profiles"),     profilesArr},
-        {QStringLiteral("profileBinds"), profileBindsObj},
-        {QStringLiteral("profileColors"), profileColorsObj},
-        {QStringLiteral("profileIcons"), profileIconsObj},
-        {QStringLiteral("launchDelayMs"), m_launchDelayMs},
-        {QStringLiteral("autoStartProfile"), m_autoStartProfile},
-    };
+    QJsonObject root = m_extraRoot;
+    root.insert(QStringLiteral("programs"),      programs);
+    root.insert(QStringLiteral("profiles"),      profilesArr);
+    root.insert(QStringLiteral("profileBinds"),  profileBindsObj);
+    root.insert(QStringLiteral("profileColors"), profileColorsObj);
+    root.insert(QStringLiteral("profileIcons"),  profileIconsObj);
+    root.insert(QStringLiteral("launchDelayMs"), m_launchDelayMs);
+    root.insert(QStringLiteral("autoStartProfile"), m_autoStartProfile);
 
     // QSaveFile пишет во временный файл и подменяет им настоящий только при
     // успехе: сбой или выключение посреди записи не оставит обрезанный конфиг.
@@ -1151,6 +1150,11 @@ void ProcessManager::load()
     } else if (doc.isObject()) {
         const QJsonObject root = doc.object();
         programs = root.value(QStringLiteral("programs")).toArray();
+
+        m_extraRoot = root;
+        for (const char* key : {"programs", "profiles", "profileBinds", "profileColors",
+                                "profileIcons", "launchDelayMs", "autoStartProfile"})
+            m_extraRoot.remove(QLatin1String(key));
 
         const QJsonArray profilesArr = root.value(QStringLiteral("profiles")).toArray();
         for (const QJsonValue& pv : profilesArr) {
@@ -1213,6 +1217,11 @@ void ProcessManager::load()
         if (!e.bind.isEmpty() && !HotkeyManager::isValidBind(e.bind))
             e.bind.clear();
 
+        e.extra = obj;
+        for (const char* key : {"id", "path", "kind", "name", "workDir", "admin", "delay",
+                                "icon", "bind", "args", "note", "profile", "watch"})
+            e.extra.remove(QLatin1String(key));
+
         m_entries.insert(e.id, e);
         syncHotkey(e.id);
     }
@@ -1220,10 +1229,12 @@ void ProcessManager::load()
     for (const QString& name : m_profiles)
         syncProfileHotkey(name);
 
-    // Игры Steam без иконки: она берётся из локального кеша Steam, без сети.
+    // Ссылки без иконки: игры Steam берут её из локального кеша Steam, сайты —
+    // из сети. Так иконки возвращаются, даже если конфиг перезаписала старая
+    // версия, ничего о них не знавшая.
     for (const ProcessEntry& e : std::as_const(m_entries))
         if (e.kind == QLatin1String("link") && e.iconPath.isEmpty()
-            && e.path.startsWith(QLatin1String("steam://"), Qt::CaseInsensitive))
+            && LinkIconFetcher::canFetch(e.path))
             fetchLinkIcon(e.id, false);
 
     save();
