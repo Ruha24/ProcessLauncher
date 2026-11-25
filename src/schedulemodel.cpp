@@ -347,3 +347,9 @@ void ScheduleModel::save() const
     f.write(QJsonDocument(arr).toJson(QJsonDocument::Indented));
     f.commit();
 }
+
+void ScheduleModel::retranslate()
+{
+    if (!m_rules.isEmpty())
+        emit dataChanged(index(0), index(int(m_rules.size()) - 1));
+}

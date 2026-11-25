@@ -91,7 +91,7 @@ void UpdateChecker::checkForUpdates()
         QJsonParseError perr{};
         const QJsonDocument doc = QJsonDocument::fromJson(raw, &perr);
         if (doc.isNull() || !doc.isObject()) {
-            emit checkFailed(QStringLiteral("Invalid response"));
+            emit checkFailed(tr("Invalid response"));
             return;
         }
 
@@ -101,7 +101,7 @@ void UpdateChecker::checkForUpdates()
         const QString notes = obj.value(QStringLiteral("body")).toString();
 
         if (latestTag.isEmpty()) {
-            emit checkFailed(QStringLiteral("No release found"));
+            emit checkFailed(tr("No release found"));
             return;
         }
 
@@ -132,7 +132,7 @@ void UpdateChecker::checkForUpdates()
 void UpdateChecker::downloadUpdate()
 {
     if (m_assetUrl.isEmpty()) {
-        emit downloadFailed(QStringLiteral("No installer available for this OS"));
+        emit downloadFailed(tr("No installer available for this OS"));
         return;
     }
 
@@ -145,7 +145,7 @@ void UpdateChecker::downloadUpdate()
     auto* file = new QFile(target);
     if (!file->open(QIODevice::WriteOnly)) {
         delete file;
-        emit downloadFailed(QStringLiteral("Cannot write to Downloads folder"));
+        emit downloadFailed(tr("Cannot write to Downloads folder"));
         return;
     }
 

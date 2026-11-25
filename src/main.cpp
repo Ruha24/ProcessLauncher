@@ -25,6 +25,7 @@
 #include "eventlog.h"
 #include "updatechecker.h"
 #include "schedulemodel.h"
+#include "languagemanager.h"
 #include "apppaths.h"
 
 Q_IMPORT_QML_PLUGIN(ThemePlugin)
@@ -211,6 +212,10 @@ int main(int argc, char* argv[])
 
     app.setQuitOnLastWindowClosed(false);
 
+    WindowState windowState;
+    // До остальных объектов: их строки должны сразу выйти на нужном языке.
+    LanguageManager language(&windowState);
+
     ProcessManager  manager;
     ProcessListModel model(&manager);
 
@@ -221,10 +226,11 @@ int main(int argc, char* argv[])
     tray.setProcessManager(&manager);
     AutostartManager autostart;
     StartupModel startupModel;
-    WindowState windowState;
     EventLogModel eventLog;
     UpdateChecker updateChecker;
     ScheduleModel scheduleModel(&manager);
+    QObject::connect(&language, &LanguageManager::languageChanged,
+                     &scheduleModel, &ScheduleModel::retranslate);
 
     // Второй экземпляр присылает свои аргументы и отключается.
     QObject::connect(&instanceServer, &QLocalServer::newConnection,
@@ -259,6 +265,8 @@ int main(int argc, char* argv[])
                      });
 
     QQmlApplicationEngine engine;
+    language.setEngine(&engine);
+    engine.rootContext()->setContextProperty(QStringLiteral("language"), &language);
     engine.addImageProvider(QStringLiteral("exeicons"), new IconProvider());
     engine.rootContext()->setContextProperty(QStringLiteral("processModel"), &model);
     engine.rootContext()->setContextProperty(QStringLiteral("filteredModel"), &filterModel);

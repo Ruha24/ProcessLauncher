@@ -11,7 +11,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Quick Gui Qml Widgets Network)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Quick Gui Qml Widgets Network LinguistTools)
 
 qt_standard_project_setup(REQUIRES 6.5)
 
@@ -51,6 +51,8 @@ qt_add_executable(appProcessLauncher
     src/apppaths.h
     src/linkiconfetcher.cpp
     src/linkiconfetcher.h
+    src/languagemanager.cpp
+    src/languagemanager.h
 )
 
 qt_add_qml_module(appProcessLauncher
@@ -79,6 +81,14 @@ qt_add_qml_module(appProcessLauncher
         qml/AppMenu.qml
         qml/AppMenuItem.qml
         qml/AppMenuSeparator.qml
+)
+
+# Переводы интерфейса. Строки из C++ (tr) и QML (qsTr) собирает цель
+# update_translations, .qm встраиваются в exe под :/i18n.
+qt_add_translations(appProcessLauncher
+    TS_FILES i18n/ProcessLauncher_ru.ts
+    RESOURCE_PREFIX /i18n
+    LUPDATE_OPTIONS -no-obsolete -locations none
 )
 
 qt_add_resources(appProcessLauncher "app_icons"

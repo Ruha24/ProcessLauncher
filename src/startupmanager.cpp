@@ -1,5 +1,7 @@
 #include "startupmanager.h"
 
+#include <QCoreApplication>
+
 #include <QSettings>
 #include <QStandardPaths>
 #include <QDir>
@@ -17,8 +19,8 @@ const QString kApprovedRunKey =
 const QString kApprovedFolderKey =
     QStringLiteral("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\StartupFolder");
 
-const QString kSourceRegistry = QStringLiteral("Registry (HKCU)");
-const QString kSourceFolder   = QStringLiteral("Startup folder");
+const QString kSourceRegistry = QStringLiteral(QT_TRANSLATE_NOOP("StartupModel", "Registry (HKCU)"));
+const QString kSourceFolder   = QStringLiteral(QT_TRANSLATE_NOOP("StartupModel", "Startup folder"));
 
 bool approvedEnabled(const QByteArray& v)
 {
@@ -38,7 +40,7 @@ QByteArray approvedValue(bool enabled)
 // На macOS показываем пользовательские LaunchAgents. Выключенная запись — это
 // тот же файл с суффиксом .disabled: launchd читает только *.plist, так что
 // при следующем входе в систему она не запустится, а включить её можно назад.
-const QString kSourceAgent = QStringLiteral("LaunchAgent");
+const QString kSourceAgent = QStringLiteral(QT_TRANSLATE_NOOP("StartupModel", "LaunchAgent"));
 const QString kDisabledSuffix = QStringLiteral(".disabled");
 
 QString launchAgentsDir()
@@ -91,7 +93,8 @@ QVariant StartupModel::data(const QModelIndex& index, int role) const
     switch (role) {
     case NameRole:    return e.name;
     case CommandRole: return e.command;
-    case SourceRole:  return e.source;
+    // Сам source — ещё и ключ (см. kSource*), переводим только при показе.
+    case SourceRole:  return QCoreApplication::translate("StartupModel", e.source.toUtf8().constData());
     case EnabledRole: return e.enabled;
     }
     return QVariant();

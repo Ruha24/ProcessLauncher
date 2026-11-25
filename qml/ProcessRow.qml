@@ -60,9 +60,9 @@ Item {
         var h = Math.floor(secs / 3600)
         var m = Math.floor((secs % 3600) / 60)
         var s = secs % 60
-        if (h > 0) return h + " h " + m + " min"
-        if (m > 0) return m + " min " + s + " s"
-        return s + " s"
+        if (h > 0) return qsTr("%1 h %2 min").arg(h).arg(m)
+        if (m > 0) return qsTr("%1 min %2 s").arg(m).arg(s)
+        return qsTr("%1 s").arg(s)
     }
 
     function formatMemory(bytes) {

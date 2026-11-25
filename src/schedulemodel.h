@@ -55,6 +55,8 @@ public:
                              const QString& targetLabel,
                              int hour, int minute, int days, bool once);
     Q_INVOKABLE void setEnabled(int row, bool on);
+    // Описания правил собираются из tr() — после смены языка их нужно обновить.
+    void retranslate();
     Q_INVOKABLE void removeRule(int row);
 
 private slots:

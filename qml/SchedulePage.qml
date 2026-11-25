@@ -90,43 +90,52 @@ Item {
                     }
                 }
 
-                RowLayout {
+                // Переносится на новую строку, если не помещается (узкое окно,
+                // длинные слова в переводе).
+                Flow {
                     Layout.fillWidth: true
                     spacing: Theme.spaceS
 
-                    Text {
-                        text: qsTr("at")
-                        color: Theme.textMuted
-                        font.pixelSize: TypeScale.body
-                        Layout.preferredWidth: 28
-                    }
-                    AppTextField {
-                        id: hourField
-                        Layout.preferredWidth: 48
-                        horizontalAlignment: TextInput.AlignHCenter
-                        text: "09"
-                        maximumLength: 2
-                        inputMethodHints: Qt.ImhDigitsOnly
-                        validator: IntValidator { bottom: 0; top: 23 }
-                        onEditingFinished: page.clampField(hourField, 23)
-                    }
-                    Text {
-                        text: ":"
-                        color: Theme.textMuted
-                        font.pixelSize: TypeScale.title
-                    }
-                    AppTextField {
-                        id: minuteField
-                        Layout.preferredWidth: 48
-                        horizontalAlignment: TextInput.AlignHCenter
-                        text: "00"
-                        maximumLength: 2
-                        inputMethodHints: Qt.ImhDigitsOnly
-                        validator: IntValidator { bottom: 0; top: 59 }
-                        onEditingFinished: page.clampField(minuteField, 59)
+                    Row {
+                        spacing: Theme.spaceS
+
+                        Text {
+                            width: 28
+                            height: Theme.controlHeight
+                            verticalAlignment: Text.AlignVCenter
+                            text: qsTr("at")
+                            color: Theme.textMuted
+                            font.pixelSize: TypeScale.body
+                        }
+                        AppTextField {
+                            id: hourField
+                            width: 48
+                            horizontalAlignment: TextInput.AlignHCenter
+                            text: "09"
+                            maximumLength: 2
+                            inputMethodHints: Qt.ImhDigitsOnly
+                            validator: IntValidator { bottom: 0; top: 23 }
+                            onEditingFinished: page.clampField(hourField, 23)
+                        }
+                        Text {
+                            height: Theme.controlHeight
+                            verticalAlignment: Text.AlignVCenter
+                            text: ":"
+                            color: Theme.textMuted
+                            font.pixelSize: TypeScale.title
+                        }
+                        AppTextField {
+                            id: minuteField
+                            width: 48
+                            horizontalAlignment: TextInput.AlignHCenter
+                            text: "00"
+                            maximumLength: 2
+                            inputMethodHints: Qt.ImhDigitsOnly
+                            validator: IntValidator { bottom: 0; top: 59 }
+                            onEditingFinished: page.clampField(minuteField, 59)
+                        }
                     }
                     SegmentedControl {
-                        Layout.leftMargin: Theme.spaceS
                         options: [{ label: qsTr("Repeat"), value: false },
                                   { label: qsTr("Once"), value: true }]
                         value: page.once
@@ -135,7 +144,6 @@ Item {
 
                     // Дни недели — только для повторяющихся правил.
                     Row {
-                        Layout.leftMargin: Theme.spaceS
                         visible: !page.once
                         spacing: 4
 
@@ -177,7 +185,6 @@ Item {
                         }
                     }
 
-                    Item { Layout.fillWidth: true }
                     AppButton {
                         text: qsTr("Add rule")
                         variant: "primary"

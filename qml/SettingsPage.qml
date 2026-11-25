@@ -84,6 +84,19 @@ Item {
                     }
                 }
             }
+            Divider { }
+            SettingRow {
+                Layout.fillWidth: true
+                title: qsTr("Language")
+                AppComboBox {
+                    // Названия языков — на них самих, чтобы их узнали при любом языке.
+                    readonly property var codes: ["", "en", "ru"]
+                    implicitWidth: 180
+                    model: [qsTr("As in the system"), "English", "Русский"]
+                    currentIndex: Math.max(0, codes.indexOf(language.language))
+                    onActivated: (i) => language.language = codes[i]
+                }
+            }
 
             SectionTitle { text: qsTr("Behavior") }
             SettingRow {

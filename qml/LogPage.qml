@@ -41,6 +41,12 @@ Item {
             boundsBehavior: Flickable.StopAtBounds
             ScrollBar.vertical: ScrollBar { }
 
+            // Колонка типа — по самому длинному слову: в переводах они длиннее.
+            readonly property real kindWidth: Math.ceil(Math.max(errorMetrics.advanceWidth,
+                                                                 stoppedMetrics.advanceWidth))
+            TextMetrics { id: errorMetrics; font.pixelSize: TypeScale.caption; text: qsTr("Error") }
+            TextMetrics { id: stoppedMetrics; font.pixelSize: TypeScale.caption; text: qsTr("Stopped") }
+
             delegate: Item {
                 id: event
                 required property string time
@@ -64,7 +70,7 @@ Item {
                         color: event.isError ? Theme.danger : Theme.lineStrong
                     }
                     Text {
-                        Layout.preferredWidth: 56
+                        Layout.preferredWidth: event.ListView.view ? event.ListView.view.kindWidth : 56
                         text: event.isError ? qsTr("Error") : qsTr("Stopped")
                         color: event.isError ? Theme.danger : Theme.textMuted
                         font.pixelSize: TypeScale.caption
