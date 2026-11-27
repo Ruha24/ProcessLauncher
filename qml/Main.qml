@@ -796,7 +796,7 @@ ApplicationWindow {
             spacing: Theme.spaceM
             Text {
                 Layout.fillWidth: true
-                text: qsTr("One variable per line as NAME=value. Use %NAME% to insert the current value, e.g. PATH=C:\\tools;%PATH%. An empty value removes the variable. Lines starting with # are ignored.")
+                text: qsTr("One variable per line as NAME=value. Use %NAME% to insert the current value, e.g. JAVA_OPTS=%JAVA_OPTS% -Xmx2g. An empty value removes the variable. Lines starting with # are ignored.")
                 color: Theme.textMuted
                 font.pixelSize: TypeScale.body
                 wrapMode: Text.WordWrap

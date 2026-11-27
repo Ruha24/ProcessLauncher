@@ -27,12 +27,12 @@
             <translation>Нажмите клавишу или сочетание</translation>
         </message>
         <message>
-            <source>Letters, digits and F1–F20, alone or with Cmd, Ctrl, Option or Shift. The hotkey works even when the launcher is in the background.</source>
-            <translation>Буквы, цифры и F1–F20 — отдельно или с Cmd, Ctrl, Option или Shift. Клавиша работает, даже когда лаунчер в фоне.</translation>
+            <source>Letters, digits and F1–F20, alone or with Cmd, Ctrl, Option or Shift; Space only with them. The hotkey works even when the launcher is in the background.</source>
+            <translation>Буквы, цифры и F1–F20 — отдельно или с Cmd, Ctrl, Option или Shift; пробел — только с ними. Клавиша работает, даже когда лаунчер в фоне.</translation>
         </message>
         <message>
-            <source>Letters, digits and F1–F24, alone or with Ctrl, Alt, Shift or Win. The hotkey works even when the launcher is in the background.</source>
-            <translation>Буквы, цифры и F1–F24 — отдельно или с Ctrl, Alt, Shift или Win. Клавиша работает, даже когда лаунчер в фоне.</translation>
+            <source>Letters, digits and F1–F24, alone or with Ctrl, Alt, Shift or Win; Space only with them. The hotkey works even when the launcher is in the background.</source>
+            <translation>Буквы, цифры и F1–F24 — отдельно или с Ctrl, Alt, Shift или Win; пробел — только с ними. Клавиша работает, даже когда лаунчер в фоне.</translation>
         </message>
     </context>
     <context>
@@ -416,6 +416,65 @@
             <source>Install</source>
             <translation>Установить</translation>
         </message>
+        <message>
+            <source>Quick search hotkey</source>
+            <translation>Клавиша быстрого поиска</translation>
+        </message>
+        <message>
+            <source>Opens a small search box over any window: type a few letters of a program or profile and press Enter.</source>
+            <translation>Открывает поиск поверх любого окна: наберите несколько букв названия программы или профиля и нажмите Enter.</translation>
+        </message>
+        <message>
+            <source>Environment for %1</source>
+            <translation>Окружение для %1</translation>
+        </message>
+        <message>
+            <source>Statistics</source>
+            <translation>Статистика</translation>
+        </message>
+        <message>
+            <source>Normal</source>
+            <translation>Как обычно</translation>
+        </message>
+        <message>
+            <source>Minimized</source>
+            <translation>Свёрнутым</translation>
+        </message>
+        <message>
+            <source>Maximized</source>
+            <translation>Развёрнутым на весь экран</translation>
+        </message>
+        <message>
+            <source>Open the window</source>
+            <translation>Как открывать окно</translation>
+        </message>
+        <message>
+            <source>Some programs pick their own window size and ignore this.</source>
+            <translation>Некоторые программы сами выбирают размер окна и эту настройку не слушают.</translation>
+        </message>
+        <message>
+            <source>Clear</source>
+            <translation>Очистить</translation>
+        </message>
+        <message>
+            <source>Each line must look like NAME=value: %1</source>
+            <translation>Каждая строка должна быть вида ИМЯ=значение: %1</translation>
+        </message>
+        <message>
+            <source>Not applied when the program runs as administrator.</source>
+            <translation>Не действует, когда программа запускается от администратора.</translation>
+        </message>
+        <message>
+            <source>One variable per line as NAME=value. Use %NAME% to insert the current value, e.g. JAVA_OPTS=%JAVA_OPTS% -Xmx2g. An empty value removes the variable. Lines starting with # are ignored.</source>
+            <translation>По одной переменной в строке: ИМЯ=значение. %ИМЯ% подставляет текущее значение, например JAVA_OPTS=%JAVA_OPTS% -Xmx2g. Пустое значение убирает переменную. Строки с # в начале пропускаются.</translation>
+        </message>
+    </context>
+    <context>
+        <name>ProcessListModel</name>
+        <message>
+            <source>Profile · programs: %1</source>
+            <translation>Профиль · программ: %1</translation>
+        </message>
     </context>
     <context>
         <name>ProcessManager</name>
@@ -646,6 +705,26 @@
             <source>%1 min %2 s</source>
             <translation>%1 мин %2 с</translation>
         </message>
+        <message>
+            <source>Window…</source>
+            <translation>Окно…</translation>
+        </message>
+        <message>
+            <source>minimized</source>
+            <translation>свёрнуто</translation>
+        </message>
+        <message>
+            <source>maximized</source>
+            <translation>развёрнуто</translation>
+        </message>
+        <message>
+            <source>Environment variables…</source>
+            <translation>Переменные окружения…</translation>
+        </message>
+        <message>
+            <source>set</source>
+            <translation>заданы</translation>
+        </message>
     </context>
     <context>
         <name>ProgramsPage</name>
@@ -715,6 +794,25 @@
         <message>
             <source>No program named “%1”</source>
             <translation>Нет программы «%1»</translation>
+        </message>
+    </context>
+    <context>
+        <name>QuickSearch</name>
+        <message>
+            <source>Start a program or profile…</source>
+            <translation>Запустить программу или профиль…</translation>
+        </message>
+        <message>
+            <source>Running</source>
+            <translation>Работает</translation>
+        </message>
+        <message>
+            <source>Nothing found</source>
+            <translation>Ничего не найдено</translation>
+        </message>
+        <message>
+            <source>Enter — start · %1+Enter — stop · Esc — close</source>
+            <translation>Enter — запустить · %1+Enter — остановить · Esc — закрыть</translation>
         </message>
     </context>
     <context>
@@ -997,6 +1095,18 @@
             <source>As in the system</source>
             <translation>Как в системе</translation>
         </message>
+        <message>
+            <source>Quick search</source>
+            <translation>Быстрый поиск</translation>
+        </message>
+        <message>
+            <source>A hotkey that opens a search box over any window to start a program or profile by name.</source>
+            <translation>Клавиша, которая поверх любого окна открывает поиск, чтобы запустить программу или профиль по имени.</translation>
+        </message>
+        <message>
+            <source>Off</source>
+            <translation>Выключен</translation>
+        </message>
     </context>
     <context>
         <name>StartupModel</name>
@@ -1062,6 +1172,65 @@
         <message>
             <source>Nothing starts with the system.</source>
             <translation>С системой ничего не запускается.</translation>
+        </message>
+    </context>
+    <context>
+        <name>StatsPage</name>
+        <message>
+            <source>%1 h %2 min</source>
+            <translation>%1 ч %2 мин</translation>
+        </message>
+        <message>
+            <source>%1 min</source>
+            <translation>%1 мин</translation>
+        </message>
+        <message>
+            <source>&lt; 1 min</source>
+            <translation>&lt; 1 мин</translation>
+        </message>
+        <message>
+            <source>Statistics</source>
+            <translation>Статистика</translation>
+        </message>
+        <message>
+            <source>Total: %1</source>
+            <translation>Всего: %1</translation>
+        </message>
+        <message>
+            <source>How long each program has been running.</source>
+            <translation>Сколько времени работала каждая программа.</translation>
+        </message>
+        <message>
+            <source>Clear</source>
+            <translation>Очистить</translation>
+        </message>
+        <message>
+            <source>Clear statistics?</source>
+            <translation>Очистить статистику?</translation>
+        </message>
+        <message>
+            <source>Time recorded for all programs is deleted. This cannot be undone.</source>
+            <translation>Записанное время всех программ удалится. Отменить это нельзя.</translation>
+        </message>
+        <message>
+            <source>Today</source>
+            <translation>Сегодня</translation>
+        </message>
+        <message>
+            <source>7 days</source>
+            <translation>7 дней</translation>
+        </message>
+        <message>
+            <source>All time</source>
+            <translation>Всё время</translation>
+        </message>
+        <message>
+            <source>Nothing has run today yet. Time is counted while a program is running.</source>
+            <translation>Сегодня ещё ничего не запускалось. Время считается, пока программа работает.</translation>
+        </message>
+        <message>
+            <source>No time recorded yet. Time is counted while a program is running.</source>
+            <translation>Время пока не записано. Оно считается, пока программа работает.</translation>
         </message>
     </context>
     <context>

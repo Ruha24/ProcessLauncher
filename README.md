@@ -25,7 +25,7 @@ an unidentified developer — right-click the app → "Open".
 ## How to use
 
 The window has a sidebar on the left: your profiles on top, then
-Schedule, Startup, Log and Settings.
+Schedule, Startup, Statistics, Log and Settings.
 
 **Add a program.** Click "Add…" and choose what to add:
 
@@ -58,6 +58,11 @@ processes too. The "⋯" button (or a right-click) opens the rest:
   It only applies when the whole profile starts;
 - **Working folder…** — the folder the program starts in (by default,
   the folder it lives in);
+- **Window…** (Windows) — open the program's window as usual, minimized
+  or maximized. Some programs choose their own window size and ignore it;
+- **Environment variables…** — extra `NAME=value` lines for this
+  program only; `%NAME%` inserts the current value
+  (`JAVA_OPTS=%JAVA_OPTS% -Xmx2g`), an empty value removes a variable;
 - **Restart if it stops** — auto-restart;
 - **Run as administrator** (Windows) — starts it through the UAC
   prompt; such programs show an "Admin" badge and can still be stopped
@@ -65,6 +70,23 @@ processes too. The "⋯" button (or a right-click) opens the rest:
 - **Duplicate** — a copy of the program right below it, e.g. to run
   it with other arguments or keep it in another profile;
 - move to another profile, open file location, copy path, remove.
+
+**Already running programs.** If a program from the list is already
+open — you started it yourself, or it was running before the launcher —
+its row shows it as running within a few seconds, and "Start" doesn't
+open a second copy. Its running time counts from when it really
+started. Scripts can't be recognized this way.
+
+**Quick search.** Press Ctrl+Alt+Space anywhere (change or turn it off
+in Settings → Quick search). A search box opens over all windows: type
+a few letters of a program or profile from any profile and press Enter
+to start it, or Ctrl+Enter (Cmd+Enter on macOS) to stop it. Letters
+typed in the wrong keyboard layout (Russian ↔ English) still match.
+
+**Statistics.** The Statistics page shows how long each program has
+been running today, in the last 7 days and in total, with the biggest
+first. Time is counted while a program runs, including programs
+started outside the launcher.
 
 **Order.** Drag a program by the handle on the left of its row to move
 it up or down. A profile starts its programs from top to bottom.
@@ -98,7 +120,8 @@ turn entries off or remove them. On Windows it is the same list Task
 Manager shows; on macOS these are your launch agents.
 
 **Settings.** Dark/light theme, interface language (English or
-Russian; by default, the system's), opening the launcher with the system,
+Russian; by default, the system's), the quick search hotkey, opening the
+launcher with the system,
 a profile to start when the launcher opens, what happens on close
 (stay in the tray or quit), whether quitting the launcher also closes
 the programs it started, timing, and export/import of everything to a
@@ -142,6 +165,11 @@ The profile menu's "Create desktop shortcut" uses `--profile`.
 | Profile desktop shortcut     | yes     | no    |
 | Memory and CPU of programs   | yes     | yes   |
 | English and Russian UI       | yes     | yes   |
+| Already running programs     | yes     | yes   |
+| Quick search hotkey          | yes     | yes   |
+| Time statistics              | yes     | yes   |
+| Environment variables        | yes     | yes   |
+| Window state on start        | yes     | no    |
 | .lnk / .url resolution       | yes     | no    |
 
 \* On macOS the startup manager lists launch agents from

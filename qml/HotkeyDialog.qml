@@ -133,8 +133,8 @@ AppDialog {
         Text {
             Layout.fillWidth: true
             text: dialog.isMac
-                  ? qsTr("Letters, digits and F1–F20, alone or with Cmd, Ctrl, Option or Shift. The hotkey works even when the launcher is in the background.")
-                  : qsTr("Letters, digits and F1–F24, alone or with Ctrl, Alt, Shift or Win. The hotkey works even when the launcher is in the background.")
+                  ? qsTr("Letters, digits and F1–F20, alone or with Cmd, Ctrl, Option or Shift; Space only with them. The hotkey works even when the launcher is in the background.")
+                  : qsTr("Letters, digits and F1–F24, alone or with Ctrl, Alt, Shift or Win; Space only with them. The hotkey works even when the launcher is in the background.")
             color: Theme.textFaint
             font.pixelSize: TypeScale.caption
             wrapMode: Text.WordWrap

@@ -9,6 +9,45 @@ import sys
 import xml.etree.ElementTree as ET
 
 RU = {
+    # 1.8: окно, окружение, статистика, быстрый поиск
+    "Window…": "Окно…",
+    "minimized": "свёрнуто",
+    "maximized": "развёрнуто",
+    "Open the window": "Как открывать окно",
+    "Normal": "Как обычно",
+    "Minimized": "Свёрнутым",
+    "Maximized": "Развёрнутым на весь экран",
+    "Some programs pick their own window size and ignore this.": "Некоторые программы сами выбирают размер окна и эту настройку не слушают.",
+    "Environment variables…": "Переменные окружения…",
+    "set": "заданы",
+    "Environment for %1": "Окружение для %1",
+    "Clear": "Очистить",
+    "Each line must look like NAME=value: %1": "Каждая строка должна быть вида ИМЯ=значение: %1",
+    "One variable per line as NAME=value. Use %NAME% to insert the current value, e.g. JAVA_OPTS=%JAVA_OPTS% -Xmx2g. An empty value removes the variable. Lines starting with # are ignored.":
+        "По одной переменной в строке: ИМЯ=значение. %ИМЯ% подставляет текущее значение, например JAVA_OPTS=%JAVA_OPTS% -Xmx2g. Пустое значение убирает переменную. Строки с # в начале пропускаются.",
+    "Not applied when the program runs as administrator.": "Не действует, когда программа запускается от администратора.",
+    "Statistics": "Статистика",
+    "Total: %1": "Всего: %1",
+    "How long each program has been running.": "Сколько времени работала каждая программа.",
+    "Clear statistics?": "Очистить статистику?",
+    "Time recorded for all programs is deleted. This cannot be undone.": "Записанное время всех программ удалится. Отменить это нельзя.",
+    "Today": "Сегодня",
+    "7 days": "7 дней",
+    "All time": "Всё время",
+    "%1 min": "%1 мин",
+    "< 1 min": "< 1 мин",
+    "Nothing has run today yet. Time is counted while a program is running.": "Сегодня ещё ничего не запускалось. Время считается, пока программа работает.",
+    "No time recorded yet. Time is counted while a program is running.": "Время пока не записано. Оно считается, пока программа работает.",
+    "Quick search": "Быстрый поиск",
+    "Quick search hotkey": "Клавиша быстрого поиска",
+    "A hotkey that opens a search box over any window to start a program or profile by name.": "Клавиша, которая поверх любого окна открывает поиск, чтобы запустить программу или профиль по имени.",
+    "Opens a small search box over any window: type a few letters of a program or profile and press Enter.": "Открывает поиск поверх любого окна: наберите несколько букв названия программы или профиля и нажмите Enter.",
+    "Off": "Выключен",
+    "Start a program or profile…": "Запустить программу или профиль…",
+    "Running": "Работает",
+    "Nothing found": "Ничего не найдено",
+    "Enter — start · %1+Enter — stop · Esc — close": "Enter — запустить · %1+Enter — остановить · Esc — закрыть",
+    "Profile · programs: %1": "Профиль · программ: %1",
     # Общие
     "Save": "Сохранить",
     "Cancel": "Отмена",
@@ -39,10 +78,10 @@ RU = {
     # HotkeyDialog
     "Remove hotkey": "Убрать клавишу",
     "Press a key or a combination": "Нажмите клавишу или сочетание",
-    "Letters, digits and F1–F20, alone or with Cmd, Ctrl, Option or Shift. The hotkey works even when the launcher is in the background.":
-        "Буквы, цифры и F1–F20 — отдельно или с Cmd, Ctrl, Option или Shift. Клавиша работает, даже когда лаунчер в фоне.",
-    "Letters, digits and F1–F24, alone or with Ctrl, Alt, Shift or Win. The hotkey works even when the launcher is in the background.":
-        "Буквы, цифры и F1–F24 — отдельно или с Ctrl, Alt, Shift или Win. Клавиша работает, даже когда лаунчер в фоне.",
+    "Letters, digits and F1–F20, alone or with Cmd, Ctrl, Option or Shift; Space only with them. The hotkey works even when the launcher is in the background.":
+        "Буквы, цифры и F1–F20 — отдельно или с Cmd, Ctrl, Option или Shift; пробел — только с ними. Клавиша работает, даже когда лаунчер в фоне.",
+    "Letters, digits and F1–F24, alone or with Ctrl, Alt, Shift or Win; Space only with them. The hotkey works even when the launcher is in the background.":
+        "Буквы, цифры и F1–F24 — отдельно или с Ctrl, Alt, Shift или Win; пробел — только с ними. Клавиша работает, даже когда лаунчер в фоне.",
 
     # LogPage
     "Programs that stopped and errors, newest first.": "Остановившиеся программы и ошибки, новые сверху.",
