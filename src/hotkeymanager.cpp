@@ -21,7 +21,7 @@ enum GenericMod : quint32 {
 
 struct ParsedBind {
     quint32 mods = 0;
-    QString key;      // "A".."Z", "0".."9", "F1".."F24"
+    QString key;      // "A".."Z", "0".."9", "F1".."F24", "SPACE"
 };
 
 bool tokenize(const QString& bind, ParsedBind& out)
@@ -58,6 +58,9 @@ bool tokenize(const QString& bind, ParsedBind& out)
         const ushort u = result.key.at(0).unicode();
         if (!((u >= '0' && u <= '9') || (u >= 'A' && u <= 'Z')))
             return false;
+    } else if (result.key == QLatin1String("SPACE")) {
+        if (result.mods == 0)
+            return false;   // голый пробел перехватывать нельзя
     } else if (result.key.at(0) == QLatin1Char('F')) {
         bool ok = false;
         const int n = result.key.mid(1).toInt(&ok);
@@ -95,6 +98,7 @@ bool macKeyCode(const QString& key, quint32& code)
         {QStringLiteral("4"), kVK_ANSI_4}, {QStringLiteral("5"), kVK_ANSI_5},
         {QStringLiteral("6"), kVK_ANSI_6}, {QStringLiteral("7"), kVK_ANSI_7},
         {QStringLiteral("8"), kVK_ANSI_8}, {QStringLiteral("9"), kVK_ANSI_9},
+        {QStringLiteral("SPACE"), kVK_Space},
         {QStringLiteral("F1"),  kVK_F1},  {QStringLiteral("F2"),  kVK_F2},
         {QStringLiteral("F3"),  kVK_F3},  {QStringLiteral("F4"),  kVK_F4},
         {QStringLiteral("F5"),  kVK_F5},  {QStringLiteral("F6"),  kVK_F6},
@@ -189,6 +193,8 @@ bool HotkeyManager::parseBind(const QString& bind, quint32& mods, quint32& vk)
 
     if (parsed.key.size() == 1)
         vk = parsed.key.at(0).unicode();   // VK-коды цифр и букв совпадают с ASCII
+    else if (parsed.key == QLatin1String("SPACE"))
+        vk = VK_SPACE;
     else
         vk = VK_F1 + (parsed.key.mid(1).toInt() - 1);
     return true;

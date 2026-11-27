@@ -45,6 +45,9 @@ AppDialog {
             name = String.fromCharCode("A".charCodeAt(0) + (key - Qt.Key_A))
         else if (key >= Qt.Key_F1 && key <= Qt.Key_F24)
             name = "F" + (key - Qt.Key_F1 + 1)
+        else if (key === Qt.Key_Space && (mods & (Qt.ControlModifier | Qt.AltModifier
+                                                  | Qt.ShiftModifier | Qt.MetaModifier)))
+            name = "Space"
         else if (shiftPairs[String.fromCharCode(key)] !== undefined)
             name = shiftPairs[String.fromCharCode(key)]
         else

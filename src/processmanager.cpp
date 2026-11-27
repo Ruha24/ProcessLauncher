@@ -32,6 +32,8 @@
 namespace {
 constexpr int kPollIntervalMs = 1200;
 const QString kProfilePrefix = QStringLiteral("profile:");
+const QString kSearchHotkeyId = QStringLiteral("search:");
+const QString kDefaultSearchBind = QStringLiteral("Ctrl+Alt+Space");
 
 QString defaultName(const QString& path)
 {
@@ -158,8 +160,11 @@ ProcessManager::ProcessManager(QObject* parent)
     connect(m_hotkeys, &HotkeyManager::activated,
             this, &ProcessManager::onHotkeyActivated);
 
+    m_searchBind = kDefaultSearchBind;
     load();
     loadStats();
+    if (!m_searchBind.isEmpty())
+        m_hotkeys->setHotkey(kSearchHotkeyId, m_searchBind);
 
     if (!m_autoStartProfile.isEmpty() && m_profiles.contains(m_autoStartProfile))
         startProfile(m_autoStartProfile);
@@ -247,6 +252,8 @@ bool ProcessManager::importConfig(const QString& path)
     stopAll();
     resetState();
     load();
+    if (!m_searchBind.isEmpty())
+        m_hotkeys->setHotkey(kSearchHotkeyId, m_searchBind);
     emit listChanged();
     emit profilesChanged();
     return true;
@@ -254,7 +261,9 @@ bool ProcessManager::importConfig(const QString& path)
 
 void ProcessManager::onHotkeyActivated(const QString& hotkeyId)
 {
-    if (hotkeyId.startsWith(kProfilePrefix))
+    if (hotkeyId == kSearchHotkeyId)
+        emit searchRequested();
+    else if (hotkeyId.startsWith(kProfilePrefix))
         startProfile(hotkeyId.mid(kProfilePrefix.size()));
     else
         start(hotkeyId);
@@ -434,6 +443,28 @@ void ProcessManager::setProfileBind(const QString& name, const QString& bind)
         m_profileBinds.insert(name, normalized);
 
     syncProfileHotkey(name);
+    save();
+    emit profilesChanged();
+}
+
+QString ProcessManager::searchBind() const
+{
+    return m_searchBind;
+}
+
+void ProcessManager::setSearchBind(const QString& bind)
+{
+    QString normalized = bind.trimmed();
+    if (!normalized.isEmpty() && !HotkeyManager::isValidBind(normalized)) {
+        emit errorOccurred(QString(), tr("Invalid hotkey: %1").arg(normalized));
+        return;
+    }
+    if (m_searchBind == normalized)
+        return;
+    m_searchBind = normalized;
+    m_hotkeys->clearHotkey(kSearchHotkeyId);
+    if (!m_searchBind.isEmpty())
+        m_hotkeys->setHotkey(kSearchHotkeyId, m_searchBind);
     save();
     emit profilesChanged();
 }
@@ -1469,6 +1500,8 @@ void ProcessManager::resetState()
     m_extraRoot = QJsonObject();
     m_launchDelayMs = 0;
     m_autoStartProfile.clear();
+    m_searchBind = kDefaultSearchBind;
+    m_hotkeys->clearHotkey(kSearchHotkeyId);
 }
 
 void ProcessManager::syncHotkey(const QString& id)
@@ -1544,6 +1577,7 @@ void ProcessManager::save() const
     root.insert(QStringLiteral("profileIcons"),  profileIconsObj);
     root.insert(QStringLiteral("launchDelayMs"), m_launchDelayMs);
     root.insert(QStringLiteral("autoStartProfile"), m_autoStartProfile);
+    root.insert(QStringLiteral("searchBind"), m_searchBind);
 
     // QSaveFile пишет во временный файл и подменяет им настоящий только при
     // успехе: сбой или выключение посреди записи не оставит обрезанный конфиг.
@@ -1601,7 +1635,8 @@ void ProcessManager::load()
 
         m_extraRoot = root;
         for (const char* key : {"programs", "profiles", "profileBinds", "profileColors",
-                                "profileIcons", "launchDelayMs", "autoStartProfile"})
+                                "profileIcons", "launchDelayMs", "autoStartProfile",
+                                "searchBind"})
             m_extraRoot.remove(QLatin1String(key));
 
         const QJsonArray profilesArr = root.value(QStringLiteral("profiles")).toArray();
@@ -1620,6 +1655,9 @@ void ProcessManager::load()
 
         m_launchDelayMs = root.value(QStringLiteral("launchDelayMs")).toInt(0);
         m_autoStartProfile = root.value(QStringLiteral("autoStartProfile")).toString();
+        // Ключа нет — конфиг от версии без быстрого поиска: остаётся клавиша по умолчанию.
+        if (root.contains(QStringLiteral("searchBind")))
+            m_searchBind = root.value(QStringLiteral("searchBind")).toString().trimmed();
 
         const QJsonObject colors = root.value(QStringLiteral("profileColors")).toObject();
         for (auto it = colors.constBegin(); it != colors.constEnd(); ++it)
@@ -1632,6 +1670,8 @@ void ProcessManager::load()
 
     if (m_profiles.isEmpty())
         m_profiles.append(QStringLiteral("Default"));
+    if (!m_searchBind.isEmpty() && !HotkeyManager::isValidBind(m_searchBind))
+        m_searchBind.clear();
 
     for (const QJsonValue& v : programs) {
         if (!v.isObject())

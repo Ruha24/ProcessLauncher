@@ -129,6 +129,17 @@ Item {
             Divider { }
             SettingRow {
                 Layout.fillWidth: true
+                title: qsTr("Quick search")
+                description: qsTr("A hotkey that opens a search box over any window to start a program or profile by name.")
+                AppButton {
+                    readonly property string bind: (page.app.styleVersion, processModel.searchBind())
+                    text: bind.length > 0 ? bind : qsTr("Off")
+                    onClicked: page.app.editSearchBind()
+                }
+            }
+            Divider { }
+            SettingRow {
+                Layout.fillWidth: true
                 title: qsTr("Keep running in the tray when the window is closed")
                 description: qsTr("Hotkeys, the schedule and auto-restart only work while the launcher is running.")
                 ToggleSwitch {

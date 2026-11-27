@@ -25,6 +25,9 @@ public:
     ~TrayController() override;
 
     Q_INVOKABLE bool isAvailable() const;
+    // Показать окно поверх остальных и отдать ему фокус. Windows не даёт
+    // фоновому процессу просто так забрать фокус — тут это обходится.
+    Q_INVOKABLE void bringToFront(QWindow* window);
     void setWindow(QWindow* window);
     void setProcessManager(ProcessManager* manager);
 

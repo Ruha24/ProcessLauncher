@@ -26,6 +26,8 @@ ProcessListModel::ProcessListModel(ProcessManager* manager, QObject* parent)
             this, &ProcessListModel::profilesChanged);
     connect(m_manager, &ProcessManager::tick,
             this, &ProcessListModel::tick);
+    connect(m_manager, &ProcessManager::searchRequested,
+            this, &ProcessListModel::searchRequested);
     connect(m_manager, &ProcessManager::processExited,
             this, &ProcessListModel::processExited);
 }
@@ -252,6 +254,121 @@ QVariantList ProcessListModel::statistics(const QString& period) const
         });
     }
     return result;
+}
+
+namespace {
+// Текст, набранный не в той раскладке: «ntktuhfv» -> «телеграм» и наоборот.
+QString swapLayout(const QString& s)
+{
+    static const QString en = QStringLiteral("qwertyuiop[]asdfghjkl;'zxcvbnm,.`");
+    static const QString ru = QStringLiteral("йцукенгшщзхъфывапролджэячсмитьбюё");
+    QString out = s;
+    for (QChar& c : out) {
+        if (const qsizetype i = en.indexOf(c); i >= 0)
+            c = ru.at(i);
+        else if (const qsizetype j = ru.indexOf(c); j >= 0)
+            c = en.at(j);
+    }
+    return out;
+}
+
+// Меньше — лучше; -1 — не подходит.
+int matchScore(const QString& name, const QString& q)
+{
+    if (q.isEmpty())
+        return 50;
+    const QString n = name.toLower();
+    if (n == q)
+        return 0;
+    if (n.startsWith(q))
+        return 1;
+    const qsizetype at = n.indexOf(q);
+    if (at > 0) {
+        const QChar before = n.at(at - 1);
+        return (before.isLetterOrNumber() ? 3 : 2);
+    }
+    // Буквы запроса по порядку: «vsc» находит «Visual Studio Code».
+    qsizetype pos = 0;
+    for (const QChar c : q) {
+        pos = n.indexOf(c, pos);
+        if (pos < 0)
+            return -1;
+        ++pos;
+    }
+    return 4;
+}
+
+int bestScore(const QString& name, const QString& q, const QString& swapped)
+{
+    const int a = matchScore(name, q);
+    const int b = swapped == q ? -1 : matchScore(name, swapped);
+    if (a < 0) return b < 0 ? -1 : b + 1;
+    if (b < 0) return a;
+    return qMin(a, b + 1);
+}
+}
+
+QVariantList ProcessListModel::quickSearch(const QString& query) const
+{
+    const QString q = query.trimmed().toLower();
+    const QString swapped = swapLayout(q);
+    struct Hit { int score; int order; QVariantMap item; };
+    QList<Hit> hits;
+    int order = 0;
+
+    for (const QString& p : m_manager->profiles()) {
+        const int s = bestScore(p, q, swapped);
+        if (s < 0 || q.isEmpty())
+            continue;   // без запроса профили не показываем — только программы
+        const int total = m_manager->profileTotalCount(p);
+        hits.append({s, order++, QVariantMap{
+            {QStringLiteral("kind"), QStringLiteral("profile")},
+            {QStringLiteral("id"), p},
+            {QStringLiteral("name"), p},
+            {QStringLiteral("subtitle"), tr("Profile · programs: %1").arg(total)},
+            {QStringLiteral("iconSource"), QString()},
+            {QStringLiteral("emoji"), m_manager->profileIcon(p)},
+            {QStringLiteral("running"), m_manager->profileRunningCount(p) > 0},
+        }});
+    }
+    for (const ProcessEntry& e : m_manager->entries()) {
+        int s = bestScore(e.name, q, swapped);
+        if (s < 0) {
+            const int byFile = bestScore(QFileInfo(e.path).fileName(), q, swapped);
+            if (byFile < 0)
+                continue;
+            s = byFile + 5;
+        }
+        hits.append({s, order++, QVariantMap{
+            {QStringLiteral("kind"), QStringLiteral("program")},
+            {QStringLiteral("id"), e.id},
+            {QStringLiteral("name"), e.name},
+            {QStringLiteral("subtitle"), e.profile},
+            {QStringLiteral("iconSource"), e.iconPath.isEmpty() ? e.path : e.iconPath},
+            {QStringLiteral("emoji"), QString()},
+            {QStringLiteral("running"), m_manager->isRunning(e.id)},
+        }});
+    }
+    std::stable_sort(hits.begin(), hits.end(), [](const Hit& a, const Hit& b) {
+        return a.score != b.score ? a.score < b.score : a.order < b.order;
+    });
+    QVariantList result;
+    for (const Hit& h : hits) {
+        result.append(h.item);
+        if (result.size() >= 30)
+            break;
+    }
+    return result;
+}
+
+QString ProcessListModel::searchBind() const
+{
+    return m_manager->searchBind();
+}
+
+void ProcessListModel::setSearchBind(const QString& bind)
+{
+    m_manager->setSearchBind(bind);
 }
 
 void ProcessListModel::clearStatistics()

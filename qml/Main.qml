@@ -98,8 +98,14 @@ ApplicationWindow {
         }
     }
 
+    QuickSearch {
+        id: quickSearch
+        app: window
+    }
+
     Connections {
         target: processModel
+        function onSearchRequested() { quickSearch.toggle() }
         function onTick() { window.refreshCounts() }
         function onProfilesChanged() {
             window.refreshProfiles()
@@ -187,6 +193,14 @@ ApplicationWindow {
         hotkeyDialog.description = qsTr("Pressing it starts this program.")
         hotkeyDialog.captured = bind
         hotkeyDialog.callback = function(b) { processModel.setBind(id, b) }
+        hotkeyDialog.open()
+    }
+
+    function editSearchBind() {
+        hotkeyDialog.title = qsTr("Quick search hotkey")
+        hotkeyDialog.description = qsTr("Opens a small search box over any window: type a few letters of a program or profile and press Enter.")
+        hotkeyDialog.captured = processModel.searchBind()
+        hotkeyDialog.callback = function(b) { processModel.setSearchBind(b) }
         hotkeyDialog.open()
     }
 

@@ -14,6 +14,10 @@
 #include "processmanager.h"
 #include "iconprovider.h"
 
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
+
 TrayController::TrayController(QWindow* window, QObject* parent)
     : QObject(parent)
     , m_window(window)
@@ -206,6 +210,28 @@ void TrayController::showWindow()
     m_window->show();
     m_window->raise();
     m_window->requestActivate();
+}
+
+void TrayController::bringToFront(QWindow* window)
+{
+    if (!window)
+        return;
+    window->show();
+    window->raise();
+#ifdef Q_OS_WIN
+    const HWND hwnd = reinterpret_cast<HWND>(window->winId());
+    const HWND fg = GetForegroundWindow();
+    const DWORD fgThread = fg ? GetWindowThreadProcessId(fg, nullptr) : 0;
+    const DWORD me = GetCurrentThreadId();
+    // Подключившись к очереди ввода активного окна, можно сделать своё
+    // окно активным — иначе Windows только мигнёт кнопкой на панели задач.
+    const bool attached = fgThread && fgThread != me && AttachThreadInput(fgThread, me, TRUE);
+    SetForegroundWindow(hwnd);
+    SetFocus(hwnd);
+    if (attached)
+        AttachThreadInput(fgThread, me, FALSE);
+#endif
+    window->requestActivate();
 }
 
 void TrayController::hideWindow()

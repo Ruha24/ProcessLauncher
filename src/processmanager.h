@@ -104,6 +104,9 @@ public:
     void        stopProfile(const QString& name);
     QString     profileBind(const QString& name) const;
     void        setProfileBind(const QString& name, const QString& bind);
+    // Горячая клавиша окна быстрого поиска (пусто — выключено).
+    QString     searchBind() const;
+    void        setSearchBind(const QString& bind);
     QString     profileColor(const QString& name) const;
     void        setProfileColor(const QString& name, const QString& color);
     QString     profileIcon(const QString& name) const;
@@ -139,6 +142,7 @@ signals:
     void profileRenamed(const QString& oldName, const QString& newName);
     void profileRemoved(const QString& name);
     void errorOccurred(const QString& id, const QString& message);
+    void searchRequested();
 
 private slots:
     void pollJobs();
@@ -184,6 +188,7 @@ private:
     int                             m_launchDelayMs = 0;
     bool                            m_killOnExit = true;
     QString                         m_autoStartProfile;
+    QString                         m_searchBind;
     QStringList                     m_launchQueue;
     QHash<QString, QTimer*>         m_delayedStarts;   // id -> таймер отложенного запуска
     QTimer*                         m_pollTimer = nullptr;

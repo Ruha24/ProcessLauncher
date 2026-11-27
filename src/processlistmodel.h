@@ -57,6 +57,11 @@ public:
     // [{id, name, profile, iconSource, seconds, running}], больше времени — выше.
     Q_INVOKABLE QVariantList statistics(const QString& period) const;
     Q_INVOKABLE void clearStatistics();
+    // Для окна быстрого поиска: программы и профили, лучшие совпадения первыми.
+    // [{kind: "program"|"profile", id, name, subtitle, iconSource, emoji, running}]
+    Q_INVOKABLE QVariantList quickSearch(const QString& query) const;
+    Q_INVOKABLE QString searchBind() const;
+    Q_INVOKABLE void setSearchBind(const QString& bind);
     Q_INVOKABLE void setEnv(const QString& id, const QString& env);
     Q_INVOKABLE void setIcon(const QString& id, const QString& iconPath);
     Q_INVOKABLE void fetchLinkIcon(const QString& id);
@@ -110,6 +115,7 @@ signals:
 
     void errorMessage(const QString& text);
     void profilesChanged();
+    void searchRequested();
     void tick();
     void processExited(const QString& name, const QString& profile);
 
