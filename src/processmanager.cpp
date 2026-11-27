@@ -58,6 +58,61 @@ QString effectiveName(const ProcessEntry& e)
 {
     return e.customName.isEmpty() ? defaultName(e.path) : e.customName;
 }
+
+// Окружение для запуска: системное плюс строки ИМЯ=значение из настроек
+// программы. %ИМЯ% и ${ИМЯ} в значении заменяются текущими значениями
+// (PATH=C:\tools;%PATH%), пустое значение убирает переменную.
+QProcessEnvironment buildEnvironment(const QString& text)
+{
+    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    static const QRegularExpression ref(
+        QStringLiteral("%([A-Za-z_][A-Za-z0-9_()]*)%|\\$\\{([A-Za-z_][A-Za-z0-9_]*)\\}"));
+    const QStringList lines = text.split(QLatin1Char('\n'));
+    for (QString line : lines) {
+        line = line.trimmed();
+        if (line.isEmpty() || line.startsWith(QLatin1Char('#')))
+            continue;
+        const qsizetype eq = line.indexOf(QLatin1Char('='));
+        if (eq <= 0)
+            continue;
+        const QString name = line.left(eq).trimmed();
+        const QString raw = line.mid(eq + 1).trimmed();
+        QString value;
+        qsizetype last = 0;
+        auto m = ref.globalMatch(raw);
+        while (m.hasNext()) {
+            const auto match = m.next();
+            value += raw.mid(last, match.capturedStart() - last);
+            const QString var = match.captured(1).isEmpty() ? match.captured(2)
+                                                            : match.captured(1);
+            value += env.value(var);
+            last = match.capturedEnd();
+        }
+        value += raw.mid(last);
+        if (value.isEmpty())
+            env.remove(name);
+        else
+            env.insert(name, value);
+    }
+    return env;
+}
+
+bool isValidWindowMode(const QString& mode)
+{
+    return mode.isEmpty() || mode == QLatin1String("minimized")
+           || mode == QLatin1String("maximized");
+}
+
+#ifdef Q_OS_WIN
+WORD showCommand(const QString& mode)
+{
+    if (mode == QLatin1String("minimized"))
+        return SW_SHOWMINNOACTIVE;   // свернуть и не отнимать фокус
+    if (mode == QLatin1String("maximized"))
+        return SW_SHOWMAXIMIZED;
+    return SW_SHOWNORMAL;
+}
+#endif
 }
 
 ProcessManager::ProcessManager(QObject* parent)
@@ -641,6 +696,29 @@ void ProcessManager::setArgs(const QString& id, const QString& args)
     emit listChanged();
 }
 
+void ProcessManager::setWindowMode(const QString& id, const QString& mode)
+{
+    auto it = m_entries.find(id);
+    if (it == m_entries.end() || !isValidWindowMode(mode) || it->windowMode == mode)
+        return;
+
+    it->windowMode = mode;
+    save();
+    emit listChanged();
+}
+
+void ProcessManager::setEnv(const QString& id, const QString& env)
+{
+    auto it = m_entries.find(id);
+    const QString text = env.trimmed();
+    if (it == m_entries.end() || it->env == text)
+        return;
+
+    it->env = text;
+    save();
+    emit listChanged();
+}
+
 void ProcessManager::setNote(const QString& id, const QString& note)
 {
     auto it = m_entries.find(id);
@@ -706,6 +784,18 @@ void ProcessManager::start(const QString& id)
 
     QProcess proc;
     proc.setWorkingDirectory(workDir);
+    if (!it->env.isEmpty())
+        proc.setProcessEnvironment(buildEnvironment(it->env));
+#ifdef Q_OS_WIN
+    if (!it->windowMode.isEmpty()) {
+        const WORD show = showCommand(it->windowMode);
+        proc.setCreateProcessArgumentsModifier(
+            [show](QProcess::CreateProcessArguments* a) {
+                a->startupInfo->dwFlags |= STARTF_USESHOWWINDOW;
+                a->startupInfo->wShowWindow = show;
+            });
+    }
+#endif
     const QString ext = suffixOf(it->path);
     const QString nativePath = QDir::toNativeSeparators(it->path);
     const QStringList userArgs = it->args.trimmed().isEmpty()
@@ -795,7 +885,7 @@ void ProcessManager::startElevated(const QString& id, const QString& workDir)
     sei.lpFile = file.c_str();
     sei.lpParameters = params.empty() ? nullptr : params.c_str();
     sei.lpDirectory = dir.c_str();
-    sei.nShow = SW_SHOWNORMAL;
+    sei.nShow = showCommand(e.windowMode);
 
     // Вызов ждёт, пока пользователь ответит в окне UAC.
     if (!ShellExecuteExW(&sei) || !sei.hProcess) {
@@ -1271,6 +1361,10 @@ void ProcessManager::save() const
             obj.insert(QStringLiteral("delay"), e.startDelaySec);
         if (!e.iconPath.isEmpty())
             obj.insert(QStringLiteral("icon"), e.iconPath);
+        if (!e.windowMode.isEmpty())
+            obj.insert(QStringLiteral("window"), e.windowMode);
+        if (!e.env.isEmpty())
+            obj.insert(QStringLiteral("env"), e.env);
         programs.append(obj);
     }
 
@@ -1415,6 +1509,10 @@ void ProcessManager::load()
         e.profile = obj.value(QStringLiteral("profile")).toString();
         e.watch = obj.value(QStringLiteral("watch")).toBool(false);
         e.order = obj.value(QStringLiteral("order")).toInt(-1);
+        e.windowMode = obj.value(QStringLiteral("window")).toString();
+        if (!isValidWindowMode(e.windowMode))
+            e.windowMode.clear();
+        e.env = obj.value(QStringLiteral("env")).toString().trimmed();
         if (e.profile.isEmpty() || !m_profiles.contains(e.profile))
             e.profile = m_profiles.first();
         if (!e.bind.isEmpty() && !HotkeyManager::isValidBind(e.bind))
@@ -1423,7 +1521,7 @@ void ProcessManager::load()
         e.extra = obj;
         for (const char* key : {"id", "path", "kind", "name", "workDir", "admin", "delay",
                                 "icon", "bind", "args", "note", "profile", "watch",
-                                "order"})
+                                "order", "window", "env"})
             e.extra.remove(QLatin1String(key));
 
         m_entries.insert(e.id, e);

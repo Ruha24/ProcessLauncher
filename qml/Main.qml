@@ -233,6 +233,19 @@ ApplicationWindow {
                 })
     }
 
+    function chooseWindowMode(id, mode) {
+        windowModeDialog.targetId = id
+        windowModeDialog.currentMode = mode
+        windowModeDialog.open()
+    }
+
+    function editEnv(id, env, name) {
+        envDialog.targetId = id
+        envDialog.title = qsTr("Environment for %1").arg(name)
+        envDialog.initialValue = env
+        envDialog.open()
+    }
+
     function chooseIcon(id) {
         iconDialog.targetId = id
         iconDialog.open()
@@ -683,6 +696,122 @@ ApplicationWindow {
             color: Theme.textMuted
             font.pixelSize: TypeScale.body
             wrapMode: Text.WordWrap
+        }
+    }
+
+    AppDialog {
+        id: windowModeDialog
+        property string targetId: ""
+        property string currentMode: ""
+        readonly property var modes: ["", "minimized", "maximized"]
+        readonly property var labels: [qsTr("Normal"), qsTr("Minimized"), qsTr("Maximized")]
+
+        title: qsTr("Open the window")
+        preferredWidth: 340
+        acceptText: ""
+        rejectText: qsTr("Cancel")
+
+        contentItem: ColumnLayout {
+            spacing: 2
+            Text {
+                Layout.fillWidth: true
+                Layout.bottomMargin: Theme.spaceS
+                text: qsTr("Some programs pick their own window size and ignore this.")
+                color: Theme.textMuted
+                font.pixelSize: TypeScale.body
+                wrapMode: Text.WordWrap
+            }
+            Repeater {
+                model: windowModeDialog.modes.length
+                SidebarItem {
+                    required property int index
+                    Layout.fillWidth: true
+                    text: windowModeDialog.labels[index]
+                    selected: windowModeDialog.modes[index] === windowModeDialog.currentMode
+                    showMarker: true
+                    badge: selected ? qsTr("current") : ""
+                    onClicked: {
+                        processModel.setWindowMode(windowModeDialog.targetId,
+                                                   windowModeDialog.modes[index])
+                        windowModeDialog.close()
+                    }
+                }
+            }
+        }
+    }
+
+    AppDialog {
+        id: envDialog
+        property string targetId: ""
+        property string initialValue: ""
+
+        preferredWidth: 460
+        clearText: qsTr("Clear")
+
+        onOpened: {
+            envArea.text = initialValue
+            envArea.forceActiveFocus()
+            envArea.cursorPosition = envArea.length
+        }
+        onCleared: envArea.text = ""
+        onAccepted: {
+            var bad = []
+            var lines = envArea.text.split("\n")
+            for (var i = 0; i < lines.length; ++i) {
+                var l = lines[i].trim()
+                if (l.length === 0 || l.charAt(0) === "#")
+                    continue
+                if (!/^[^=\s][^=]*=/.test(l))
+                    bad.push(l)
+            }
+            if (bad.length > 0) {
+                window.toast(qsTr("Each line must look like NAME=value: %1").arg(bad[0]), true)
+                return
+            }
+            processModel.setEnv(targetId, envArea.text)
+        }
+
+        contentItem: ColumnLayout {
+            spacing: Theme.spaceM
+            Text {
+                Layout.fillWidth: true
+                text: qsTr("One variable per line as NAME=value. Use %NAME% to insert the current value, e.g. PATH=C:\\tools;%PATH%. An empty value removes the variable. Lines starting with # are ignored.")
+                color: Theme.textMuted
+                font.pixelSize: TypeScale.body
+                wrapMode: Text.WordWrap
+            }
+            ScrollView {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 150
+                TextArea {
+                    id: envArea
+                    color: Theme.text
+                    placeholderText: "API_URL=http://localhost:8080\nDEBUG=1"
+                    placeholderTextColor: Theme.textFaint
+                    selectionColor: Theme.accent
+                    selectedTextColor: Theme.onAccent
+                    font.pixelSize: TypeScale.body
+                    font.family: Qt.platform.os === "windows" ? "Consolas" : "Menlo"
+                    selectByMouse: true
+                    wrapMode: TextArea.NoWrap
+                    leftPadding: 10
+                    rightPadding: 10
+                    background: Rectangle {
+                        radius: Theme.radiusSmall
+                        color: Theme.raised
+                        border.width: envArea.activeFocus ? 2 : 1
+                        border.color: envArea.activeFocus ? Theme.accent : Theme.line
+                    }
+                }
+            }
+            Text {
+                Layout.fillWidth: true
+                visible: Qt.platform.os === "windows"
+                text: qsTr("Not applied when the program runs as administrator.")
+                color: Theme.textFaint
+                font.pixelSize: TypeScale.caption
+                wrapMode: Text.WordWrap
+            }
         }
     }
 

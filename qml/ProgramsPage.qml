@@ -154,6 +154,8 @@ Item {
                 onDragMoved: (y) => list.updateDrop(y)
                 onDragFinished: (accepted) => list.finishDrag(accepted)
                 onDuplicateRequested: (id) => { processModel.duplicateProgram(id); page.app.refreshCounts() }
+                onWindowModeRequested: (id, mode) => page.app.chooseWindowMode(id, mode)
+                onEditEnvRequested: (id, env, name) => page.app.editEnv(id, env, name)
                 onStartRequested: (id) => { processModel.start(id); page.app.refreshCounts() }
                 onStopRequested: (id) => { processModel.stop(id); page.app.refreshCounts() }
                 onRestartRequested: (id) => { processModel.restart(id); page.app.refreshCounts() }

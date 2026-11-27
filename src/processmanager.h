@@ -37,6 +37,8 @@ struct ProcessEntry
     bool    watch = false;
     QString note;
     int     order = -1;      // место в списке, задаёт и порядок запуска профиля
+    QString windowMode;      // "" — как обычно, "minimized" | "maximized" (Windows)
+    QString env;             // переменные окружения: строки ИМЯ=значение
     // Поля, которых эта версия не знает (их записала более новая). Сохраняем
     // как есть, чтобы запуск старой копии не стирал чужие настройки.
     QJsonObject extra;
@@ -64,6 +66,8 @@ public:
     void    setWorkDir(const QString& id, const QString& dir);
     void    setRunAsAdmin(const QString& id, bool on);
     void    setStartDelay(const QString& id, int seconds);
+    void    setWindowMode(const QString& id, const QString& mode);
+    void    setEnv(const QString& id, const QString& env);
     void    setIcon(const QString& id, const QString& iconPath);
     // Найти иконку ссылки (сайт или игра Steam). manual — по просьбе
     // пользователя: заменить текущую иконку и сообщить, если не нашлась.

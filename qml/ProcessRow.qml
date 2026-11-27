@@ -24,6 +24,8 @@ Item {
     required property string kind
     required property string iconSource
     required property bool   hasCustomIcon
+    required property string windowMode
+    required property string env
     // Папки и ссылки только открываются — процесса, за которым следить, нет.
     readonly property bool openOnly: kind === "folder" || kind === "link"
     // Перетаскивание за ручку слева. Строку двигает список (ProgramsPage).
@@ -48,6 +50,8 @@ Item {
     signal openFolderRequested(string path)
     signal copyPathRequested(string path)
     signal duplicateRequested(string id)
+    signal windowModeRequested(string id, string currentMode)
+    signal editEnvRequested(string id, string currentEnv, string name)
     signal dragStarted(string id)
     signal dragMoved(real y)        // в координатах ListView
     signal dragFinished(bool accepted)
@@ -226,6 +230,20 @@ Item {
             visible: !row.openOnly && row.workDir.length > 0
             text: qsTr("Reset working folder")
             onTriggered: row.resetWorkDirRequested(row.procId)
+        }
+        AppMenuItem {
+            // Размер окна при запуске задаётся только в Windows.
+            visible: Qt.platform.os === "windows" && !row.openOnly
+            text: qsTr("Window…")
+            trailingText: row.windowMode === "minimized" ? qsTr("minimized")
+                        : row.windowMode === "maximized" ? qsTr("maximized") : ""
+            onTriggered: row.windowModeRequested(row.procId, row.windowMode)
+        }
+        AppMenuItem {
+            visible: !row.openOnly
+            text: qsTr("Environment variables…")
+            trailingText: row.env.length > 0 ? qsTr("set") : ""
+            onTriggered: row.editEnvRequested(row.procId, row.env, row.name)
         }
         AppMenuItem {
             text: row.note.length > 0 ? qsTr("Edit note…") : qsTr("Add note…")

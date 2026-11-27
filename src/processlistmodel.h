@@ -32,6 +32,8 @@ public:
         KindRole,
         IconSourceRole,
         CustomIconRole,
+        WindowModeRole,
+        EnvRole,
     };
     Q_ENUM(Role)
 
@@ -51,6 +53,8 @@ public:
     Q_INVOKABLE void setWorkDir(const QString& id, const QString& dir);
     Q_INVOKABLE void setRunAsAdmin(const QString& id, bool on);
     Q_INVOKABLE void setStartDelay(const QString& id, int seconds);
+    Q_INVOKABLE void setWindowMode(const QString& id, const QString& mode);
+    Q_INVOKABLE void setEnv(const QString& id, const QString& env);
     Q_INVOKABLE void setIcon(const QString& id, const QString& iconPath);
     Q_INVOKABLE void fetchLinkIcon(const QString& id);
     Q_INVOKABLE void moveProgram(const QString& id, const QString& targetId, bool after);

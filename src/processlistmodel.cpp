@@ -64,6 +64,8 @@ QVariant ProcessListModel::data(const QModelIndex& index, int role) const
     case KindRole:           return e.kind;
     case IconSourceRole:     return e.iconPath.isEmpty() ? e.path : e.iconPath;
     case CustomIconRole:     return !e.iconPath.isEmpty();
+    case WindowModeRole:     return e.windowMode;
+    case EnvRole:            return e.env;
     }
     return QVariant();
 }
@@ -88,6 +90,8 @@ QHash<int, QByteArray> ProcessListModel::roleNames() const
         {KindRole,           QByteArrayLiteral("kind")},
         {IconSourceRole,     QByteArrayLiteral("iconSource")},
         {CustomIconRole,     QByteArrayLiteral("hasCustomIcon")},
+        {WindowModeRole,     QByteArrayLiteral("windowMode")},
+        {EnvRole,            QByteArrayLiteral("env")},
     };
 }
 
@@ -218,6 +222,16 @@ void ProcessListModel::setRunAsAdmin(const QString& id, bool on)
 void ProcessListModel::setStartDelay(const QString& id, int seconds)
 {
     m_manager->setStartDelay(id, seconds);
+}
+
+void ProcessListModel::setWindowMode(const QString& id, const QString& mode)
+{
+    m_manager->setWindowMode(id, mode);
+}
+
+void ProcessListModel::setEnv(const QString& id, const QString& env)
+{
+    m_manager->setEnv(id, env);
 }
 
 void ProcessListModel::setIcon(const QString& id, const QString& iconPath)
