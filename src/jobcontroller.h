@@ -2,6 +2,10 @@
 #define JOBCONTROLLER_H
 
 #include <QtGlobal>
+#include <QDateTime>
+#include <QList>
+#include <QSet>
+#include <QString>
 
 class JobController
 {
@@ -48,6 +52,21 @@ public:
 
     // Пытается завершить процесс по PID. false — нет прав (или PID неверный).
     static bool terminatePid(qint64 pid);
+
+    // PID всех процессов под контролем (в Windows — весь job).
+    QList<qint64> pids() const;
+
+    struct ProcessInfo {
+        qint64  pid = 0;
+        QString path;   // полный путь к исполняемому файлу, разделители «/»
+    };
+    // Процессы системы, к пути которых у нас есть доступ. fileNames (в нижнем
+    // регистре) — только процессы с такими именами файлов; в Windows так не
+    // приходится открывать каждый процесс. В macOS имя процесса внутри .app
+    // не совпадает с именем бандла, поэтому там фильтр не применяется.
+    static QList<ProcessInfo> runningProcesses(const QSet<QString>& fileNames);
+    // Когда процесс запустился; пустая дата — неизвестно.
+    static QDateTime startTime(qint64 pid);
 
 private:
     void closeHandle();

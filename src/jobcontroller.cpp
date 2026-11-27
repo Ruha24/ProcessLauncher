@@ -6,6 +6,7 @@
 #ifdef Q_OS_WIN
 #include <windows.h>
 #include <psapi.h>
+#include <tlhelp32.h>
 
 JobController::JobController() = default;
 
@@ -247,6 +248,79 @@ JobController::Usage JobController::pidUsage(qint64 pid)
     return result;
 }
 
+QList<qint64> JobController::pids() const
+{
+    QList<qint64> result;
+    if (!m_job) {
+        if (m_process)
+            result.append(static_cast<qint64>(GetProcessId(static_cast<HANDLE>(m_process))));
+        return result;
+    }
+
+    constexpr DWORD kMaxPids = 512;
+    QByteArray buf(int(sizeof(JOBOBJECT_BASIC_PROCESS_ID_LIST)
+                       + kMaxPids * sizeof(ULONG_PTR)), '\0');
+    auto* list = reinterpret_cast<JOBOBJECT_BASIC_PROCESS_ID_LIST*>(buf.data());
+    if (QueryInformationJobObject(static_cast<HANDLE>(m_job), JobObjectBasicProcessIdList,
+                                  list, static_cast<DWORD>(buf.size()), nullptr)
+        || GetLastError() == ERROR_MORE_DATA) {
+        for (DWORD i = 0; i < list->NumberOfProcessIdsInList; ++i)
+            result.append(static_cast<qint64>(list->ProcessIdList[i]));
+    }
+    return result;
+}
+
+QList<JobController::ProcessInfo> JobController::runningProcesses(const QSet<QString>& fileNames)
+{
+    QList<ProcessInfo> result;
+    HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (snap == INVALID_HANDLE_VALUE)
+        return result;
+
+    PROCESSENTRY32W pe{};
+    pe.dwSize = sizeof(pe);
+    for (BOOL ok = Process32FirstW(snap, &pe); ok; ok = Process32NextW(snap, &pe)) {
+        if (pe.th32ProcessID <= 4)   // Idle и System
+            continue;
+        if (!fileNames.isEmpty()
+            && !fileNames.contains(QString::fromWCharArray(pe.szExeFile).toLower()))
+            continue;
+
+        HANDLE h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pe.th32ProcessID);
+        if (!h)
+            continue;
+        wchar_t path[4096];
+        DWORD size = DWORD(sizeof(path) / sizeof(path[0]));
+        if (QueryFullProcessImageNameW(h, 0, path, &size)) {
+            result.append({static_cast<qint64>(pe.th32ProcessID),
+                           QString::fromWCharArray(path, int(size))
+                               .replace(QLatin1Char('\\'), QLatin1Char('/'))});
+        }
+        CloseHandle(h);
+    }
+    CloseHandle(snap);
+    return result;
+}
+
+QDateTime JobController::startTime(qint64 pid)
+{
+    if (pid <= 0)
+        return QDateTime();
+    HANDLE h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, static_cast<DWORD>(pid));
+    if (!h)
+        return QDateTime();
+    FILETIME created, exited, kernel, user;
+    QDateTime result;
+    if (GetProcessTimes(h, &created, &exited, &kernel, &user)) {
+        // FILETIME — сотни наносекунд с 1601 года.
+        const qint64 unix100ns = fileTime(created) - 116444736000000000LL;
+        if (unix100ns > 0)
+            result = QDateTime::fromMSecsSinceEpoch(unix100ns / 10000);
+    }
+    CloseHandle(h);
+    return result;
+}
+
 #else
 
 #include <csignal>
@@ -379,6 +453,61 @@ JobController::Usage JobController::usage() const
 #else
     return pidUsage(m_pid);
 #endif
+}
+
+QList<qint64> JobController::pids() const
+{
+    QList<qint64> result;
+    if (m_pid <= 0)
+        return result;
+#ifdef Q_OS_MACOS
+    QList<pid_t> buf(512);
+    const int bytes = proc_listpids(PROC_PGRP_ONLY, static_cast<uint32_t>(m_pid),
+                                    buf.data(), int(buf.size() * sizeof(pid_t)));
+    const int n = bytes > 0 ? qMin(int(bytes / int(sizeof(pid_t))), int(buf.size())) : 0;
+    for (int i = 0; i < n; ++i)
+        if (buf.at(i) > 0)
+            result.append(buf.at(i));
+#endif
+    if (!result.contains(m_pid))
+        result.append(m_pid);
+    return result;
+}
+
+QList<JobController::ProcessInfo> JobController::runningProcesses(const QSet<QString>& fileNames)
+{
+    Q_UNUSED(fileNames);
+    QList<ProcessInfo> result;
+#ifdef Q_OS_MACOS
+    const int count = proc_listallpids(nullptr, 0);
+    if (count <= 0)
+        return result;
+    QList<pid_t> buf(count + 64);
+    const int n = qMin(proc_listallpids(buf.data(), int(buf.size() * sizeof(pid_t))),
+                       int(buf.size()));
+    char path[PROC_PIDPATHINFO_MAXSIZE];
+    for (int i = 0; i < n; ++i) {
+        if (buf.at(i) <= 0)
+            continue;
+        if (proc_pidpath(buf.at(i), path, sizeof(path)) > 0)
+            result.append({static_cast<qint64>(buf.at(i)), QString::fromUtf8(path)});
+    }
+#endif
+    return result;
+}
+
+QDateTime JobController::startTime(qint64 pid)
+{
+#ifdef Q_OS_MACOS
+    proc_bsdinfo info{};
+    if (pid > 0
+        && proc_pidinfo(static_cast<pid_t>(pid), PROC_PIDTBSDINFO, 0,
+                        &info, sizeof(info)) == static_cast<int>(sizeof(info)))
+        return QDateTime::fromSecsSinceEpoch(static_cast<qint64>(info.pbi_start_tvsec));
+#else
+    Q_UNUSED(pid);
+#endif
+    return QDateTime();
 }
 
 #endif

@@ -84,6 +84,15 @@ ProcessManager::ProcessManager(QObject* parent)
     });
 
     m_clock.start();
+
+    // Раз в несколько секунд ищем программы из списка, запущенные в обход
+    // лаунчера: тогда они показываются как работающие.
+    m_scanTimer = new QTimer(this);
+    m_scanTimer->setInterval(3000);
+    connect(m_scanTimer, &QTimer::timeout, this, &ProcessManager::scanExternal);
+    m_scanTimer->start();
+    QTimer::singleShot(0, this, &ProcessManager::scanExternal);
+
     m_pollTimer->setInterval(kPollIntervalMs);
     connect(m_pollTimer, &QTimer::timeout, this, &ProcessManager::pollJobs);
 
@@ -656,6 +665,11 @@ void ProcessManager::start(const QString& id)
         m_untracked.remove(id);
     }
 
+    // Программа уже открыта (сама или не через лаунчер) — вторую копию не
+    // запускаем, а начинаем следить за этой.
+    if (adoptRunning({id}))
+        return;
+
     if (it->kind == QLatin1String("link")) {
         if (!QDesktopServices::openUrl(QUrl(it->path)))
             emit errorOccurred(id, tr("%1: could not open link — %2").arg(it->name, it->path));
@@ -1034,6 +1048,97 @@ void ProcessManager::pollJobs()
     sampleUsage();
     updatePollTimer();
     emit tick();
+}
+
+namespace {
+// Скрипты работают внутри cmd/powershell/sh — по пути их процесс не найти.
+bool canDetect(const ProcessEntry& e)
+{
+    if (e.kind != QLatin1String("program"))
+        return false;
+    const QString ext = QFileInfo(e.path).suffix().toLower();
+    return ext != QLatin1String("bat") && ext != QLatin1String("cmd")
+        && ext != QLatin1String("ps1") && ext != QLatin1String("sh");
+}
+
+// Тот ли это процесс, что у программы в списке.
+bool sameProgram(const QString& entryPath, const QString& procPath)
+{
+#ifdef Q_OS_WIN
+    constexpr Qt::CaseSensitivity cs = Qt::CaseInsensitive;
+#else
+    constexpr Qt::CaseSensitivity cs = Qt::CaseSensitive;
+#endif
+    const QString entry = QDir::cleanPath(entryPath);
+    const QString proc = QDir::cleanPath(procPath);
+    if (proc.compare(entry, cs) == 0)
+        return true;
+    // macOS: в списке бандл Foo.app, а работает Foo.app/Contents/MacOS/Foo.
+    if (proc.startsWith(entry + QLatin1Char('/'), cs))
+        return true;
+    // Программы, которые запускают себя из подпапки версии (Discord:
+    // Discord/app-1.0.9/Discord.exe) — тот же файл где-то внутри её папки.
+    const QFileInfo e(entry);
+    return QFileInfo(proc).fileName().compare(e.fileName(), cs) == 0
+        && proc.startsWith(e.absolutePath() + QLatin1Char('/'), cs);
+}
+}
+
+bool ProcessManager::adoptRunning(const QStringList& ids)
+{
+    QStringList candidates;
+    QSet<QString> names;
+    for (const QString& id : ids) {
+        const auto it = m_entries.constFind(id);
+        if (it == m_entries.constEnd() || !canDetect(*it) || isRunning(id))
+            continue;
+        candidates.append(id);
+        names.insert(QFileInfo(it->path).fileName().toLower());
+    }
+    if (candidates.isEmpty())
+        return false;
+
+    const QList<JobController::ProcessInfo> procs = JobController::runningProcesses(names);
+    if (procs.isEmpty())
+        return false;
+
+    // Процессы, за которыми уже следим, второй раз не берём: иначе копия
+    // программы с другими аргументами «подхватила» бы уже запущенную.
+    QSet<qint64> claimed;
+    for (const JobController* job : std::as_const(m_jobs))
+        for (qint64 pid : job->pids())
+            claimed.insert(pid);
+    for (qint64 pid : std::as_const(m_untracked))
+        claimed.insert(pid);
+
+    bool adopted = false;
+    for (const QString& id : std::as_const(candidates)) {
+        const QString path = m_entries.value(id).path;
+        for (const JobController::ProcessInfo& p : procs) {
+            if (claimed.contains(p.pid) || !sameProgram(path, p.path))
+                continue;
+            claimed.insert(p.pid);
+            m_untracked.insert(id, p.pid);
+            const QDateTime started = JobController::startTime(p.pid);
+            m_startTimes.insert(id, started.isValid() ? started : QDateTime::currentDateTime());
+            updatePollTimer();
+            emit runStateChanged(id, true);
+            adopted = true;
+            break;
+        }
+    }
+    return adopted;
+}
+
+void ProcessManager::scanExternal()
+{
+    QStringList ids;
+    for (const ProcessEntry& e : entries()) {
+        // Ждущие отложенного запуска сейчас стартуют сами.
+        if (!m_delayedStarts.contains(e.id) && !m_launchQueue.contains(e.id))
+            ids.append(e.id);
+    }
+    adoptRunning(ids);
 }
 
 void ProcessManager::sampleUsage()

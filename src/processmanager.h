@@ -147,6 +147,10 @@ private:
     void handleExit(const QString& id);
     bool cancelDelayedStart(const QString& id);
     void sampleUsage();
+    // Найти уже работающие копии программ (запущенные не лаунчером) и
+    // следить за ними. Возвращает, подхвачена ли хоть одна.
+    bool adoptRunning(const QStringList& ids);
+    void scanExternal();
 #ifdef Q_OS_WIN
     void startElevated(const QString& id, const QString& workDir);
 #endif
@@ -170,6 +174,7 @@ private:
     QHash<QString, QTimer*>         m_delayedStarts;   // id -> таймер отложенного запуска
     QTimer*                         m_pollTimer = nullptr;
     QTimer*                         m_launchTimer = nullptr;
+    QTimer*                         m_scanTimer = nullptr;
     HotkeyManager*                  m_hotkeys = nullptr;
     LinkIconFetcher*                m_iconFetcher = nullptr;
     QSet<QString>                   m_manualIconFetch;
