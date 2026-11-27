@@ -64,6 +64,7 @@ qt_add_qml_module(appProcessLauncher
         qml/SchedulePage.qml
         qml/StartupPage.qml
         qml/LogPage.qml
+        qml/StatsPage.qml
         qml/SettingsPage.qml
         qml/ProcessRow.qml
         qml/SidebarItem.qml

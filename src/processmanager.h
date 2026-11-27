@@ -115,6 +115,10 @@ public:
     // -1 — пока неизвестно (CPU считается по разнице, нужен второй замер).
     double cpuPercent(const QString& id) const;
     qint64 memoryBytes(const QString& id) const;
+    // Сколько секунд программа проработала: period — "today", "week"
+    // (последние 7 дней вместе с сегодняшним) или "all".
+    qint64 runSeconds(const QString& id, const QString& period) const;
+    void   clearStatistics();
     int  profileRunningCount(const QString& name) const;
     int  profileTotalCount(const QString& name) const;
 
@@ -155,6 +159,12 @@ private:
     // следить за ними. Возвращает, подхвачена ли хоть одна.
     bool adoptRunning(const QStringList& ids);
     void scanExternal();
+    // Добавить в статистику время, прошедшее с прошлого замера.
+    void accountTime();
+    void credit(const QString& id, qint64 fromMs, qint64 toMs);
+    void loadStats();
+    void saveStats();
+    QString statsFilePath() const;
 #ifdef Q_OS_WIN
     void startElevated(const QString& id, const QString& workDir);
 #endif
@@ -190,6 +200,15 @@ private:
         qint64 memBytes = -1;
     };
     QHash<QString, UsageSample>     m_usage;
+
+    struct RunStats {
+        QHash<QString, qint64> days;   // "yyyy-MM-dd" -> мс
+        qint64 older = 0;              // мс за дни, которые уже не храним по отдельности
+    };
+    QHash<QString, RunStats>        m_stats;
+    QHash<QString, qint64>          m_countedAt;   // id -> до какого момента (мс) уже посчитано
+    bool                            m_statsDirty = false;
+    qint64                          m_statsSavedAt = 0;
     QElapsedTimer                   m_clock;
 };
 

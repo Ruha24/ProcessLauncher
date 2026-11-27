@@ -18,7 +18,7 @@ ApplicationWindow {
     // ------------------------------------------------------------------
     // Состояние
     // ------------------------------------------------------------------
-    property string page: "programs"   // programs | schedule | startup | log | settings
+    property string page: "programs"   // programs | schedule | startup | stats | log | settings
     property string activeProfile: ""
     property var profileList: []
     property bool minimizeToTray: true
@@ -29,7 +29,7 @@ ApplicationWindow {
     property int countsVersion: 0
     property int styleVersion: 0
 
-    readonly property var pages: ["programs", "schedule", "startup", "log", "settings"]
+    readonly property var pages: ["programs", "schedule", "startup", "stats", "log", "settings"]
 
     function refreshCounts() { countsVersion++ }
 
@@ -427,6 +427,12 @@ ApplicationWindow {
                 }
                 SidebarItem {
                     Layout.fillWidth: true
+                    text: qsTr("Statistics")
+                    selected: window.page === "stats"
+                    onClicked: window.page = "stats"
+                }
+                SidebarItem {
+                    Layout.fillWidth: true
                     text: qsTr("Log")
                     selected: window.page === "log"
                     onClicked: window.page = "log"
@@ -459,6 +465,7 @@ ApplicationWindow {
                 ProgramsPage { app: window }
                 SchedulePage { app: window }
                 StartupPage  { app: window }
+                StatsPage    { app: window; active: window.page === "stats" }
                 LogPage      { app: window }
                 SettingsPage { app: window }
             }

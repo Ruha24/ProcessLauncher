@@ -159,6 +159,7 @@ ProcessManager::ProcessManager(QObject* parent)
             this, &ProcessManager::onHotkeyActivated);
 
     load();
+    loadStats();
 
     if (!m_autoStartProfile.isEmpty() && m_profiles.contains(m_autoStartProfile))
         startProfile(m_autoStartProfile);
@@ -166,6 +167,8 @@ ProcessManager::ProcessManager(QObject* parent)
 
 ProcessManager::~ProcessManager()
 {
+    accountTime();
+    saveStats();
     // Выход из лаунчера: в зависимости от настройки либо закрываем всё, что
     // запускали, либо оставляем программы работать дальше.
     if (m_killOnExit) {
@@ -562,6 +565,10 @@ void ProcessManager::removeProgram(const QString& id)
         stop(id);
     m_hotkeys->clearHotkey(id);
     m_entries.erase(it);
+    if (m_stats.remove(id)) {
+        m_statsDirty = true;
+        saveStats();
+    }
     save();
     emit listChanged();
 }
@@ -935,7 +942,9 @@ void ProcessManager::stop(const QString& id)
         wasRunning = true;
     }
 
+    accountTime();
     m_startTimes.remove(id);
+    m_countedAt.remove(id);
     updatePollTimer();
 
     if (wasRunning)
@@ -1122,6 +1131,8 @@ QList<ProcessEntry> ProcessManager::entries() const
 
 void ProcessManager::pollJobs()
 {
+    accountTime();
+
     QList<QString> finished;
     for (auto it = m_jobs.constBegin(); it != m_jobs.constEnd(); ++it) {
         if (!it.value()->isAlive())
@@ -1268,6 +1279,146 @@ qint64 ProcessManager::memoryBytes(const QString& id) const
     return m_usage.value(id).memBytes;
 }
 
+namespace {
+constexpr int kKeepDays = 400;             // столько дней храним по отдельности
+constexpr qint64 kMaxGapMs = 5 * 60 * 1000; // больший разрыв — компьютер спал
+}
+
+void ProcessManager::accountTime()
+{
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    for (auto it = m_startTimes.constBegin(); it != m_startTimes.constEnd(); ++it) {
+        const QString& id = it.key();
+        auto c = m_countedAt.find(id);
+        if (c == m_countedAt.end()) {
+            // Запущена лаунчером — считаем с запуска; подхваченную со стороны —
+            // с момента, когда её увидели (раньше лаунчер мог быть закрыт).
+            const qint64 started = it.value().toMSecsSinceEpoch();
+            const bool fresh = m_jobs.contains(id) && now - started < kMaxGapMs;
+            m_countedAt.insert(id, now);
+            if (fresh)
+                credit(id, started, now);
+            continue;
+        }
+        const qint64 from = c.value();
+        c.value() = now;
+        if (now > from && now - from <= kMaxGapMs)
+            credit(id, from, now);
+    }
+
+    if (m_statsDirty && now - m_statsSavedAt >= 60 * 1000)
+        saveStats();
+}
+
+void ProcessManager::credit(const QString& id, qint64 fromMs, qint64 toMs)
+{
+    RunStats& s = m_stats[id];
+    QDateTime from = QDateTime::fromMSecsSinceEpoch(fromMs);
+    const QDateTime to = QDateTime::fromMSecsSinceEpoch(toMs);
+    // Время через полночь делим между днями.
+    while (from.date() < to.date()) {
+        const QDateTime midnight(from.date().addDays(1), QTime(0, 0));
+        s.days[from.date().toString(Qt::ISODate)] += from.msecsTo(midnight);
+        from = midnight;
+    }
+    s.days[from.date().toString(Qt::ISODate)] += from.msecsTo(to);
+    m_statsDirty = true;
+}
+
+qint64 ProcessManager::runSeconds(const QString& id, const QString& period) const
+{
+    const auto it = m_stats.constFind(id);
+    qint64 ms = 0;
+    if (it != m_stats.constEnd()) {
+        const QDate today = QDate::currentDate();
+        if (period == QLatin1String("today")) {
+            ms = it->days.value(today.toString(Qt::ISODate));
+        } else if (period == QLatin1String("week")) {
+            for (int i = 0; i < 7; ++i)
+                ms += it->days.value(today.addDays(-i).toString(Qt::ISODate));
+        } else {
+            ms = it->older;
+            for (qint64 v : it->days)
+                ms += v;
+        }
+    }
+    return ms / 1000;
+}
+
+void ProcessManager::clearStatistics()
+{
+    m_stats.clear();
+    // Работающие сейчас продолжают считаться с этого момента.
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    for (auto it = m_countedAt.begin(); it != m_countedAt.end(); ++it)
+        it.value() = now;
+    m_statsDirty = true;
+    saveStats();
+}
+
+QString ProcessManager::statsFilePath() const
+{
+    return AppPaths::configFile(QStringLiteral("stats.json"));
+}
+
+void ProcessManager::loadStats()
+{
+    QFile file(statsFilePath());
+    if (!file.open(QIODevice::ReadOnly))
+        return;
+    const QJsonObject root = QJsonDocument::fromJson(file.readAll()).object();
+    const QDate oldest = QDate::currentDate().addDays(-kKeepDays);
+    bool pruned = false;
+    for (auto it = root.constBegin(); it != root.constEnd(); ++it) {
+        const QJsonObject obj = it.value().toObject();
+        RunStats s;
+        s.older = qint64(obj.value(QStringLiteral("older")).toDouble() * 1000);
+        const QJsonObject days = obj.value(QStringLiteral("days")).toObject();
+        for (auto d = days.constBegin(); d != days.constEnd(); ++d) {
+            const QDate date = QDate::fromString(d.key(), Qt::ISODate);
+            const qint64 ms = qint64(d.value().toDouble() * 1000);
+            if (!date.isValid() || ms <= 0)
+                continue;
+            if (date < oldest) {
+                s.older += ms;
+                pruned = true;
+            } else {
+                s.days.insert(d.key(), ms);
+            }
+        }
+        if (s.older > 0 || !s.days.isEmpty())
+            m_stats.insert(it.key(), s);
+    }
+    m_statsDirty = pruned;
+}
+
+void ProcessManager::saveStats()
+{
+    if (!m_statsDirty)
+        return;
+    QJsonObject root;
+    for (auto it = m_stats.constBegin(); it != m_stats.constEnd(); ++it) {
+        if (!m_entries.contains(it.key()))
+            continue;
+        QJsonObject days;
+        for (auto d = it->days.constBegin(); d != it->days.constEnd(); ++d)
+            days.insert(d.key(), double(d.value() / 1000));
+        QJsonObject obj;
+        obj.insert(QStringLiteral("days"), days);
+        if (it->older > 0)
+            obj.insert(QStringLiteral("older"), double(it->older / 1000));
+        root.insert(it.key(), obj);
+    }
+    QSaveFile file(statsFilePath());
+    if (!file.open(QIODevice::WriteOnly))
+        return;
+    file.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
+    if (file.commit()) {
+        m_statsDirty = false;
+        m_statsSavedAt = QDateTime::currentMSecsSinceEpoch();
+    }
+}
+
 void ProcessManager::handleExit(const QString& id)
 {
     if (auto jt = m_jobs.find(id); jt != m_jobs.end()) {
@@ -1276,6 +1427,7 @@ void ProcessManager::handleExit(const QString& id)
     }
     m_untracked.remove(id);
     m_startTimes.remove(id);
+    m_countedAt.remove(id);
     m_usage.remove(id);
 
     const auto e = m_entries.constFind(id);

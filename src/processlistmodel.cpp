@@ -229,6 +229,36 @@ void ProcessListModel::setWindowMode(const QString& id, const QString& mode)
     m_manager->setWindowMode(id, mode);
 }
 
+QVariantList ProcessListModel::statistics(const QString& period) const
+{
+    QList<QPair<qint64, ProcessEntry>> rows;
+    for (const ProcessEntry& e : m_manager->entries()) {
+        const qint64 s = m_manager->runSeconds(e.id, period);
+        if (s > 0)
+            rows.append({s, e});
+    }
+    std::stable_sort(rows.begin(), rows.end(),
+                     [](const auto& a, const auto& b) { return a.first > b.first; });
+    QVariantList result;
+    for (const auto& r : rows) {
+        const ProcessEntry& e = r.second;
+        result.append(QVariantMap{
+            {QStringLiteral("id"), e.id},
+            {QStringLiteral("name"), e.name},
+            {QStringLiteral("profile"), e.profile},
+            {QStringLiteral("iconSource"), e.iconPath.isEmpty() ? e.path : e.iconPath},
+            {QStringLiteral("seconds"), r.first},
+            {QStringLiteral("running"), m_manager->isRunning(e.id)},
+        });
+    }
+    return result;
+}
+
+void ProcessListModel::clearStatistics()
+{
+    m_manager->clearStatistics();
+}
+
 void ProcessListModel::setEnv(const QString& id, const QString& env)
 {
     m_manager->setEnv(id, env);

@@ -54,6 +54,9 @@ public:
     Q_INVOKABLE void setRunAsAdmin(const QString& id, bool on);
     Q_INVOKABLE void setStartDelay(const QString& id, int seconds);
     Q_INVOKABLE void setWindowMode(const QString& id, const QString& mode);
+    // [{id, name, profile, iconSource, seconds, running}], больше времени — выше.
+    Q_INVOKABLE QVariantList statistics(const QString& period) const;
+    Q_INVOKABLE void clearStatistics();
     Q_INVOKABLE void setEnv(const QString& id, const QString& env);
     Q_INVOKABLE void setIcon(const QString& id, const QString& iconPath);
     Q_INVOKABLE void fetchLinkIcon(const QString& id);
